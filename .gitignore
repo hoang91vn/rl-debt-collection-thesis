@@ -1,0 +1,12 @@
+*.sas7bdat
+*.sas7bndx
+*.model
+*.log
+*.html
+*.exe
+*.png
+*.csv
+*.xlsx
+*.xls
+*.lst
+*.pkl
