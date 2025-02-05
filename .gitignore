@@ -11,3 +11,4 @@
 *.lst
 *.pkl
 *.pyc
+venv

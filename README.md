@@ -6,7 +6,7 @@ RL Debt Collection is a project aimed at creating a robust and efficient system 
 
 ## Installation
 
-To install the project, clone the repository and install the required dependencies in your Python virtual environment:
+To install the project, clone the repository and install the required dependencies in your Python (version >= 3.10) virtual environment:
 
 ```bash
 git clone https://github.com/akmere/rl-debt-collection.git
@@ -21,7 +21,7 @@ python -m pip install -r requirements.txt
 To run the project, execute the following command:
 
 ```bash
-python main.py
+python python/main.py
 ```
 
 ## Common Issues

@@ -62,6 +62,7 @@ def run_final(
     """
     The main loop of the program. It runs the movemonth1 and movemonth2 SAS macros for each period and lets set the code for choosing actions between them.
     """
+    os.makedirs(SAS_DATA_PATH, exist_ok=True)
     log = sas.submit("""
         proc sql noprint;
         select period into :prod_periods separated by '#'
