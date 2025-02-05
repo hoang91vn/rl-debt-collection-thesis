@@ -1,4 +1,4 @@
-/* (c) Karol Przanowski */
+/** (c) Karol Przanowski */
 /* kprzan@sgh.waw.pl */
 
 
@@ -102,13 +102,13 @@ where period="&period";
 run;
 proc append base=data.transactions data=tmp;
 run;
-%mend;
+%mend allocate;
 
 
 
 
 /*abt calculation*/
-%macro movemonth(period,period1);
+%macro movemonth1(period,period1);
 %allocate(&period);
 
 
@@ -116,7 +116,7 @@ proc sql;
 create table data.abt_tmp as
 select * from data.Transactions
 where aid in
-(select aid from data.Transactions 
+(select aid from data.Transactions
 where status='A' and period="&period1") and period<="&period1"
 ;
 quit;
@@ -144,14 +144,14 @@ app_loan_amount=loan_amount;
 app_n_installments=n_installments;
 act_seniority=intck('month',input(fin_period,yymmn6.),input(period,yymmn6.))+1;
 
-app_nom_branch=branch; 
-app_nom_gender=gender; 
-app_nom_job_code=job_code; 
-app_number_of_children=number_of_children; 
-app_nom_marital_status=marital_status; 
-app_nom_city=city; 
-app_nom_home_status=home_status; 
-app_nom_cars=cars; 
+app_nom_branch=branch;
+app_nom_gender=gender;
+app_nom_job_code=job_code;
+app_number_of_children=number_of_children;
+app_nom_marital_status=marital_status;
+app_nom_city=city;
+app_nom_home_status=home_status;
+app_nom_cars=cars;
 app_spendings=spendings;
 
 /*characteristics*/
@@ -172,13 +172,13 @@ due=due_installments;
 keep period cid aid days due;
 run;
 
-proc transpose data=data.abt_p2 prefix=days_ 
+proc transpose data=data.abt_p2 prefix=days_
 out=data.abt_days(drop=_name_ _lebel_);
 var days;
 id period;
 by aid;
 run;
-proc transpose data=data.abt_p2 prefix=due_ 
+proc transpose data=data.abt_p2 prefix=due_
 out=data.abt_due(drop=_name_ _lebel_);
 var due;
 id period;
@@ -190,7 +190,7 @@ proc sql;
 create table data.abt_tmp_cus as
 select * from data.Transactions
 where cid in
-(select distinct cid from data.Transactions 
+(select distinct cid from data.Transactions
 where status='A' and period="&period1") and period<="&period1"
 ;
 quit;
@@ -222,13 +222,13 @@ run;
 proc sort data=data.abt_p2 out=data.abt_p3_rel(keep=cid aid) nodupkey;
 by aid;
 run;
-proc transpose data=data.abt_p2_cus prefix=CMax_due_ 
+proc transpose data=data.abt_p2_cus prefix=CMax_due_
 out=data.abt_CMax_due(drop=_name_ _lebel_);
 var CMax_due;
 id period;
 by cid;
 run;
-proc transpose data=data.abt_p2_cus prefix=CMax_days_ 
+proc transpose data=data.abt_p2_cus prefix=CMax_days_
 out=data.abt_CMax_days(drop=_name_ _lebel_);
 var CMax_days;
 id period;
@@ -237,7 +237,7 @@ run;
 
 proc means data=data.abt_tmp_cus nway noprint;
 class cid;
-var paid_installments n_installments 
+var paid_installments n_installments
 	due_installments income installment spendings;
 output out=data.abt_tmp_cus_agr(drop=_type_ _freq_)
 sum(paid_installments n_installments due_installments installment spendings)=
@@ -273,7 +273,7 @@ run;
 
 proc sql;
 create table data.abt_cus_hist as
-select cid, 
+select cid,
 max(intck('month',input(fin_period,yymmn6.),input("&period1",yymmn6.))+1)
 as act_cus_seniority,
 count(distinct aid) as act_cus_n_loans_hist,
@@ -370,9 +370,9 @@ data data.abt_score_c;
 set data.abt_score;
 scorem=sum(
 1*app_income,
-1*app_nom_branch, 
+1*app_nom_branch,
 1*app_nom_gender,
-2*app_nom_job_code, 
+2*app_nom_job_code,
 1*app_number_of_children,
 1*app_nom_marital_status,
 1*app_nom_city,
@@ -391,12 +391,12 @@ score=sum(
  6*act_cus_n_statC,
 -3*act_cus_n_statB,
 
- 1*app_nom_branch, 
+ 1*app_nom_branch,
  3*app_nom_gender,
- 6*app_nom_job_code, 
--3*(app_nom_job_code=4 and app_nom_marital_status in (2,3) 
+ 6*app_nom_job_code,
+-3*(app_nom_job_code=4 and app_nom_marital_status in (2,3)
 	and app_nom_gender=2),
- 2*(app_nom_job_code=4 and app_nom_marital_status in (2,3) 
+ 2*(app_nom_job_code=4 and app_nom_marital_status in (2,3)
 	and app_nom_gender=1),
  6*app_number_of_children,
  3*app_nom_marital_status,
@@ -420,7 +420,7 @@ score=sum(
 -3*ags3_Mean_Days ,
 
 -3*agr6_Mean_Due ,
--3*ags6_Mean_Days , 
+-3*ags6_Mean_Days ,
 
 -2*agr9_Mean_Due ,
 -3*ags9_Mean_Days ,
@@ -473,6 +473,13 @@ var score;
 output out=stat_coll(drop=_freq_ _type_) n()=n;
 run;
 
+data collection_actions;
+length cid $10 aid $16 period $6 action_nr action coll_status 8;
+delete;
+run;
+%mend movemonth1;
+
+%macro vanilla_actions();
 /*running actions*/
 data collection_actions;
 length cid $10 aid $16 period $6 action_nr action coll_status 8;
@@ -483,12 +490,13 @@ if coll_status ne 1 and coll_status ne 7 and coll_status ne 8 then do;
 		action=int(ranuni(&seed)*3+1);
 		output;
 	end;
-end; 
+end;
 keep cid aid period action_nr action coll_status;
 run;
 /*running actions*/
+%mend vanilla_actions;
 
-
+%macro movemonth2(period,period1);
 /*debtor behaviour*/
 proc sort data=collection_actions out=actions;
 by aid action_nr;
@@ -637,7 +645,7 @@ do obs=1 to nobs;
 	end;
 	output;
 end;
-keep 
+keep
 cid aid period fin_period status coll_status
 due_installments paid_installments pay_days;
 run;
@@ -647,7 +655,8 @@ run;
 
 proc append base=data.Collection_actions data=Collection_actions;
 run;
-%mend;
+
+%mend movemonth2;
 
 %macro final;
 proc sql noprint;
@@ -664,8 +673,12 @@ quit;
 %do fi=2 %to &n_prod_periods;
 	%let fiperiod=%scan(&prod_periods,&fi,#);
 	%let fiperiod1=%scan(&prod_periods,%eval(&fi-1),#);
-	%movemonth(&fiperiod,&fiperiod1);
+	%movemonth1(&fiperiod,&fiperiod1);
+	%vanilla_actions;
+	%movemonth2(&fiperiod,&fiperiod1);
 %end;
-%mend;
+%mend final;
+/*
 %final;
+*/
 
