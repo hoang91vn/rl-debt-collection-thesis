@@ -20,18 +20,8 @@ AccountPeriodInfo = TypedDict(
         "aid": str,
         "period": str,
         "abt_data": pd.Series | None,
-        "transactions_data": TransactionsData | None,
+        "transactions_data": TransactionsData,
         "action": str | None,
-    },
-)
-
-AccountTwoPeriodInfo = TypedDict(
-    "AccountTwoPeriodInfo",
-    {
-        "cid": str,
-        "aid": str,
-        "previous": AccountPeriodInfo,
-        "current": AccountPeriodInfo,
     },
 )
 
@@ -43,23 +33,6 @@ CidAid = TypedDict(
     },
 )
 
-
-CollectionActionRow = TypedDict(
-    "CollectionActionRow",
-    {
-        "cid": str,
-        "aid": str,
-        "period": str,
-        "action_nr": int,
-        "action": int,
-        "coll_status": str,
-    },
-)
-
 AccountHistory = TypedDict(
-    "AccountHistory", {"history": List[AccountTwoPeriodInfo], "terminated": bool}
+    "AccountHistory", {"history": List[AccountPeriodInfo], "terminated": bool}
 )
-
-
-Transition = tuple[pd.Series, str, float, pd.Series | None]
-Episode = List[Transition]

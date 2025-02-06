@@ -6,6 +6,8 @@ from special_types import (
     AccountHistory,
     CidAid,
 )
+import os
+import pickle
 
 EXCLUDED_ABT_COLUMNS: Final[List[str]] = ["cid", "aid", "period"]
 
@@ -78,7 +80,7 @@ def get_collection_actions(
 
 
 def get_account_period_info(
-    abt: pd.DataFrame | None,
+    abt: pd.DataFrame,
     transactions: pd.DataFrame,
     collection_actions: pd.DataFrame,
     cid: str,
@@ -86,28 +88,27 @@ def get_account_period_info(
     period: str,
     included_abt_columns: List[str] | None = None,
     excluded_abt_columns: List[str] = EXCLUDED_ABT_COLUMNS,
-) -> AccountPeriodInfo:
+) -> AccountPeriodInfo | None:
     """
     Returns a dictionary formed from the data from SAS table for a given cid, aid and period with the following keys:
     - cid: str
     - aid: str
     - period: str
-    - abt_data: pd.Series | None
-    - transactions_data: TransactionsData | None
+    - abt_data: pd.Series
+    - transactions_data: TransactionsData
     - action: str | None
     """
-    if abt is None:
+    abt_tmp = abt.loc[abt["aid"] == aid]
+    if abt_tmp.empty:
         observation = None
     else:
-        abt_tmp = abt.loc[abt["aid"] == aid]
-        if abt_tmp.empty:
-            observation = None
-        else:
-            if included_abt_columns is not None:
-                abt_tmp = abt_tmp[included_abt_columns]
-            abt_tmp = abt_tmp.drop(columns=excluded_abt_columns, errors="ignore")
-            observation = abt_tmp.iloc[0]
+        if included_abt_columns is not None:
+            abt_tmp = abt_tmp[included_abt_columns]
+        abt_tmp = abt_tmp.drop(columns=excluded_abt_columns, errors="ignore")
+        observation = abt_tmp.iloc[0]
     status_data = get_transactions_data(transactions, aid, period)
+    if status_data is None:
+        return None
     action = get_collection_actions(collection_actions, aid, period)
     return {
         "cid": cid,
@@ -143,7 +144,6 @@ def get_all_accounts_histories(
         print("period:", period)
         all_cidaids = get_all_cidaids(transactions, period)
         previous_abt = None
-        current_abt = None
         try:
             previous_abt = pd.read_sas(
                 f"{sas_data_path}\\abt_{get_previous_period(period)}.sas7bdat",
@@ -160,10 +160,9 @@ def get_all_accounts_histories(
                 format="sas7bdat",
                 encoding="utf-8",
             )
-            if current_abt is None:
-                print(f"File abt_{period}.sas7bdat is empty")
         except FileNotFoundError:
             print(f"File abt_{period}.sas7bdat not found")
+            raise FileNotFoundError
         for cidaids in all_cidaids:
             cid = cidaids["cid"]
             aid = cidaids["aid"]
@@ -172,15 +171,6 @@ def get_all_accounts_histories(
                     "history": [],
                     "terminated": False,
                 }
-            previous_info = get_account_period_info(
-                previous_abt,
-                transactions,
-                collection_actions,
-                cid,
-                aid,
-                get_previous_period(period),
-                included_abt_columns=included_abt_columns,
-            )
             current_info = get_account_period_info(
                 current_abt,
                 transactions,
@@ -190,17 +180,27 @@ def get_all_accounts_histories(
                 period,
                 included_abt_columns=included_abt_columns,
             )
-            if (
-                current_info["transactions_data"] is not None
-                and current_info["transactions_data"]["status"] != "A"
-            ):
+            assert current_info is not None
+            if current_info["transactions_data"]["status"] != "A":
                 accounts_histories[aid]["terminated"] = True
-            accounts_histories[aid]["history"].append(
-                {
-                    "previous": previous_info,
-                    "current": current_info,
-                    "aid": aid,
-                    "cid": cid,
-                }
-            )
+            accounts_histories[aid]["history"].append(current_info)
     return accounts_histories
+
+
+def save_histories(
+    histories: Dict[str, AccountHistory], directory: str, name: str
+) -> None:
+    """
+    Saves the histories to a file of given name in HISTORIES_PATH.
+    """
+    os.makedirs(directory, exist_ok=True)
+    with open(f"{directory}/{name}.pkl", "wb") as f:
+        pickle.dump(histories, f)
+
+
+def load_histories(directory: str, name: str) -> Dict[str, AccountHistory]:
+    """
+    Loads the histories from a file of given name in HISTORIES_PATH.
+    """
+    with open(f"{directory}/{name}.pkl", "rb") as f:
+        return pickle.load(f)

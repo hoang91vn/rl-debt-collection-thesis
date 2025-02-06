@@ -2,28 +2,21 @@ import os
 import saspy
 from saspy import SASsession
 import pandas as pd
-from special_types import (
-    AccountTwoPeriodInfo,
-    AccountHistory,
-    CidAid,
-    CollectionActionRow,
-)
+from special_types import AccountHistory, CidAid
 from util import (
     get_account_period_info,
     get_all_cidaids,
     get_previous_period,
-    get_all_accounts_histories,
 )
 from decision import decide_for_all
 from typing import Dict, List, cast, Final
-import pickle
 import traceback
 
 # SAS code constants
 N_DAY: Final[int] = 1
 SEED: Final[int] = 1
 S_DATE: Final[str] = "01jan2000"
-E_DATE: Final[str] = "31jan2002"
+E_DATE: Final[str] = "28feb2001"
 
 # other constants
 ROOT_PATH: Final[str] = os.path.dirname(os.path.dirname(__file__))
@@ -48,6 +41,7 @@ def initialize(sas: saspy.SASsession) -> None:
     """
     Sets the needed constants for the SAS code and runs the initial SAS codes (everything before the main movemonth loop).
     """
+    log: str = ""
     sas.symput("dir", f"{SAS_DIRECTORY_PATH}\\")
     sas.symput("n_day", N_DAY)
     sas.symput("seed", SEED)
@@ -55,8 +49,10 @@ def initialize(sas: saspy.SASsession) -> None:
     sas.submit(f"%let e_date='{E_DATE}'d;")
     initial_code = open(INITIAL_PATH).read()
     another_code = open(ABT_CODE_PATH).read()
-    sas.submit(initial_code)
-    sas.submit(another_code)
+    log += sas.submit(initial_code)["LOG"]
+    log += sas.submit(another_code)["LOG"]
+    with open(f"{SAS_DATA_PATH}/sas.log", "w") as f:
+        f.write(log)
 
 
 def run_final(
@@ -84,8 +80,11 @@ def run_final(
     n_prod_periods = cast(int, n_prod_periods)
     print("n_prod_periods:", n_prod_periods)
 
+    accounts_histories: Dict[str, AccountHistory] = {}
+
     # the main loop processing from period to period
-    for fi in range(2, n_prod_periods + 1):
+    for fi in range(2, n_prod_periods + 2):
+        is_last_period: bool = fi == n_prod_periods + 1
         print(fi)
         sas.symput("fi", fi)
         log = sas.submit(
@@ -111,25 +110,41 @@ def run_final(
             "collection_actions", "data"
         ).to_df()
         transactions: pd.DataFrame = sas.sasdata("transactions", "data").to_df()
-
-        previous_abt = sas.sasdata(f"abt_{previous_period}", "data").to_df()
+        previous_abt: pd.DataFrame | None = None
+        try:
+            previous_abt = pd.read_sas(
+                f"{SAS_DATA_PATH}\\abt_{previous_period}.sas7bdat",
+                format="sas7bdat",
+                encoding="utf-8",
+            )
+        except FileNotFoundError:
+            print(f"File abt_{previous_period}.sas7bdat not found")
         abt_score = sas.sasdata("abt_score", "data").to_df()
 
         # list of all aids for which actions should be selected or which were just terminated
         all_cidaids: List[CidAid] = get_all_cidaids(transactions, current_period)
-        two_period_infos: List[AccountTwoPeriodInfo] = []
-        for cidaids in all_cidaids:
-            cid = cidaids["cid"]
-            aid = cidaids["aid"]
-            previous_info = get_account_period_info(
-                previous_abt,
-                transactions,
-                data_collection_actions,
-                cid,
-                aid,
-                previous_period,
-                included_abt_columns=included_abt_columns,
-            )
+        aids_to_decide: List[str] = []
+        for cidaid in all_cidaids:
+            cid = cidaid["cid"]
+            aid = cidaid["aid"]
+
+            if aid not in accounts_histories:
+                accounts_histories[aid] = {
+                    "history": [],
+                    "terminated": False,
+                }
+            if previous_abt is None:
+                previous_info = None
+            else:
+                previous_info = get_account_period_info(
+                    previous_abt,
+                    transactions,
+                    data_collection_actions,
+                    cid,
+                    aid,
+                    previous_period,
+                    included_abt_columns=included_abt_columns,
+                )
             current_info = get_account_period_info(
                 abt_score,
                 transactions,
@@ -139,74 +154,68 @@ def run_final(
                 current_period,
                 included_abt_columns=included_abt_columns,
             )
-            assert current_info["transactions_data"] is not None
-            two_period_infos.append(
-                {
-                    "previous": previous_info,
-                    "current": current_info,
-                    "aid": aid,
-                    "cid": cid,
-                }
+            assert current_info is not None
+            # exchange the last elemenet of the account history with the updated info
+            if len(accounts_histories[aid]["history"]) > 0:
+                assert previous_info is not None
+                accounts_histories[aid]["history"][-1] = previous_info
+            accounts_histories[aid]["history"].append(current_info)
+            if current_info["transactions_data"]["status"] != "A":
+                accounts_histories[aid]["terminated"] = True
+            else:
+                aids_to_decide.append(cidaid["aid"])
+        if not is_last_period:
+            collection_actions_sas = sas.sasdata("collection_actions")
+            collection_actions = collection_actions_sas.to_df()
+            new_collection_actions_rows = pd.DataFrame(
+                columns=collection_actions.columns
             )
-        collection_actions_sas = sas.sasdata("collection_actions")
-        collection_actions = collection_actions_sas.to_df()
-        new_collection_actions_rows = pd.DataFrame(columns=collection_actions.columns)
-        new_collection_actions_raw_data: List[CollectionActionRow] = []
-        new_collection_actions_raw_data = decide_for_all(two_period_infos)
-        for row in new_collection_actions_raw_data:
-            new_row_values = [
-                row["cid"],
-                row["aid"],
-                row["period"],
-                float(row["action_nr"]),
-                float(row["action"]),
-                row["coll_status"],
-            ]
-            new_row = pd.DataFrame(
-                columns=collection_actions.columns, data=[new_row_values]
+            decisions: Dict[str, str] = decide_for_all(
+                aids_to_decide, accounts_histories
             )
-            new_collection_actions_rows = pd.concat(
-                [new_collection_actions_rows, new_row], axis=0
-            )
-        collection_actions_sas.append(new_collection_actions_rows, True)
+            for aid in aids_to_decide:
+                try:
+                    actions_str = decisions[aid]
+                except KeyError:
+                    print("aid not found in decisions:", aid)
+                    raise KeyError
+                action_nr: int = 1
+                for action in actions_str[::-1]:
+                    new_row_values = {
+                        "cid": accounts_histories[aid]["history"][-1]["cid"],
+                        "aid": aid,
+                        "period": current_period,
+                        "action_nr": float(action_nr),
+                        "action": float(action),
+                        "coll_status": accounts_histories[aid]["history"][-1][
+                            "transactions_data"
+                        ]["coll_status"],
+                    }
+                    new_row = pd.DataFrame(
+                        columns=collection_actions.columns, data=[new_row_values]
+                    )
+                    new_collection_actions_rows = pd.concat(
+                        [new_collection_actions_rows, new_row], axis=0
+                    )
+                    action_nr += 1
+            collection_actions_sas.append(new_collection_actions_rows, True)
 
-        sas.submit("%movemonth2(&fiperiod,&fiperiod1);")
+            sas.submit("%movemonth2(&fiperiod,&fiperiod1);")
 
-
-def save_histories(histories: Dict[str, AccountHistory], name: str) -> None:
-    """
-    Saves the histories to a file of given name in HISTORIES_PATH.
-    """
-    os.makedirs(HISTORIES_PATH, exist_ok=True)
-    with open(f"{HISTORIES_PATH}/{name}.pkl", "wb") as f:
-        pickle.dump(histories, f)
-
-
-def load_histories(name: str) -> Dict[str, AccountHistory]:
-    """
-    Loads the histories from a file of given name in HISTORIES_PATH.
-    """
-    with open(f"{HISTORIES_PATH}/{name}.pkl", "rb") as f:
-        return pickle.load(f)
+    print("all histories:", len(accounts_histories))
+    terminated_histories: Dict[str, AccountHistory] = {
+        k: v for k, v in accounts_histories.items() if v["terminated"]
+    }
+    print("terminated histories:", len(terminated_histories))
 
 
 sas: SASsession | None = None
 try:
-    # get current timestamp
     timestamp: str = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
     sas = get_session()
 
     initialize(sas)
     run_final(sas)
-
-    histories: Dict[str, AccountHistory] = get_all_accounts_histories(SAS_DATA_PATH)
-    print("all histories:", len(histories))
-    terminated_histories: Dict[str, AccountHistory] = {
-        k: v for k, v in histories.items() if v["terminated"]
-    }
-    print("terminated histories:", len(terminated_histories))
-
-    save_histories(histories, f"histories_{timestamp}")
 
 except Exception:
     traceback.print_exc()
