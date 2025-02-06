@@ -2,7 +2,7 @@
 
 ## Overview
 
-RL Debt Collection is a project aimed at creating a robust and efficient system for managing and collecting debts using reinforcement learning techniques. The main loop runs in the **main.py** file, the decision making part is located in the **decision.py** file. The logic focuses around the AccountTwoPeriodInfo type, which contains the data for the two consecutive periods based on the SAS-side **abt_x** (~state/observation), **transactions** and **collection_actions** tables.
+RL Debt Collection is a project aimed at creating a robust and efficient system for managing and collecting debts using reinforcement learning techniques. The main loop runs in the **main.py** file, the decision making part is located in the **decision.py** file. The logic focuses around the _AccountPeriodInfo_ type, which contains the data for period based on the SAS-side **abt_x** (~state/observation), **transactions** and **collection_actions** tables. The decision function is able to access all the history of previous *AccountPeriodInfo*s through _accounts_histories_ by-aid dictionary.
 
 ## Installation
 
