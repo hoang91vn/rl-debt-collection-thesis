@@ -199,7 +199,7 @@ try:
     initialize(sas)
     run_final(sas)
 
-    histories: Dict[str, AccountHistory] = get_all_accounts_histories()
+    histories: Dict[str, AccountHistory] = get_all_accounts_histories(SAS_DATA_PATH)
     print("all histories:", len(histories))
     terminated_histories: Dict[str, AccountHistory] = {
         k: v for k, v in histories.items() if v["terminated"]

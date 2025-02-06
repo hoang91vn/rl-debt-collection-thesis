@@ -7,9 +7,6 @@ from special_types import (
     CidAid,
 )
 
-INITIAL_SAS_PATH: Final[str] = "C:/Projects/bt/DebtCollection/codes/initial.sas"
-ANOTHER_PATH: Final[str] = "C:/Projects/bt/DebtCollection/codes/abt_code_1.sas"
-DATA_PATH: Final[str] = "C:\\Projects\\bt\\DebtCollection\\data"
 EXCLUDED_ABT_COLUMNS: Final[List[str]] = ["cid", "aid", "period"]
 
 
@@ -123,6 +120,7 @@ def get_account_period_info(
 
 
 def get_all_accounts_histories(
+    sas_data_path: str,
     included_abt_columns: List[str] | None = None,
 ) -> Dict[str, AccountHistory]:
     """
@@ -133,10 +131,12 @@ def get_all_accounts_histories(
     # aid should be the key of the dictionary
     accounts_histories: Dict[str, AccountHistory] = {}
     transactions = pd.read_sas(
-        f"{DATA_PATH}\\transactions.sas7bdat", format="sas7bdat", encoding="utf-8"
+        f"{sas_data_path}\\transactions.sas7bdat", format="sas7bdat", encoding="utf-8"
     )
     collection_actions = pd.read_sas(
-        f"{DATA_PATH}\\collection_actions.sas7bdat", format="sas7bdat", encoding="utf-8"
+        f"{sas_data_path}\\collection_actions.sas7bdat",
+        format="sas7bdat",
+        encoding="utf-8",
     )
     all_periods: List[str] = transactions["period"].unique().astype(str).tolist()
     for period in all_periods:
@@ -146,7 +146,7 @@ def get_all_accounts_histories(
         current_abt = None
         try:
             previous_abt = pd.read_sas(
-                f"{DATA_PATH}\\abt_{get_previous_period(period)}.sas7bdat",
+                f"{sas_data_path}\\abt_{get_previous_period(period)}.sas7bdat",
                 format="sas7bdat",
                 encoding="utf-8",
             )
@@ -156,7 +156,7 @@ def get_all_accounts_histories(
             print(f"File abt_{get_previous_period(period)}.sas7bdat not found")
         try:
             current_abt = pd.read_sas(
-                f"{DATA_PATH}\\abt_{period}.sas7bdat",
+                f"{sas_data_path}\\abt_{period}.sas7bdat",
                 format="sas7bdat",
                 encoding="utf-8",
             )
