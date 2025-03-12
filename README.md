@@ -30,6 +30,10 @@ python python/main.py
 
 Assure that you have closed all of your opened SAS tables (e.g. tables opened in SAS Enterprise Guide) to avoid LOCK errors.
 
+## Additional Resources
+
+- [SASPy Documentation](https://sassoftware.github.io/saspy/index.html)
+
 ## Graphics
 
 ### Graphical representation of the simulated debt collection process. Yellow nodes are written in SAS, blue nodes are written in Python. Rectangles represent SAS tables. t denotes the current period.
