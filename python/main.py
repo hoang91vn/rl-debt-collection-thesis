@@ -15,7 +15,7 @@ import traceback
 from environment import get_action_cost
 
 # this name will be used to store the corresponding data for the run
-RUN_ID: Final[str] = "default"
+RUN_ID: Final[str] = "default6"
 
 # SAS code constants
 N_DAY: Final[int] = 1
@@ -93,7 +93,6 @@ def run_final(
     # the main loop processing from period to period
     for fi in range(2, n_prod_periods + 2):
         is_last_period: bool = fi == n_prod_periods + 1
-        print(fi)
         sas.symput("fi", fi)
         log = sas.submit(
             """
@@ -204,9 +203,14 @@ def run_final(
                     new_row = pd.DataFrame(
                         columns=collection_actions.columns, data=[new_row_values]
                     )
-                    new_collection_actions_rows = pd.concat(
-                        [new_collection_actions_rows, new_row], axis=0
-                    )
+                    if new_collection_actions_rows.empty:
+                        new_collection_actions_rows = new_row
+                    else:
+                        new_collection_actions_rows = pd.concat(
+                            [new_collection_actions_rows, new_row],
+                            axis=0,
+                            ignore_index=True,
+                        )
                     action_nr += 1
             collection_actions_sas.append(new_collection_actions_rows, True)
 
@@ -215,11 +219,20 @@ def run_final(
 
             total_cost += period_cost
             statistics = get_statistics()
-            # save statistics to csv file for each period
-            with open(f"{STATISTICS_PATH}/{RUN_ID}.csv", "a") as f:
-                f.write(
-                    f"{timestamp},{next_period},{statistics['total_paid_installments']},{statistics['total_amount']},{total_cost},{statistics['total_amount'] - total_cost}\n"
-                )
+            statistics_df = pd.DataFrame(
+                {
+                    "period": [next_period],
+                    "total_paid_installments": [statistics["total_paid_installments"]],
+                    "total_amount": [statistics["total_amount"]],
+                    "total_cost": [total_cost],
+                    "profit": [statistics["total_amount"] - total_cost],
+                }
+            )
+            statistics_file_path = f"{STATISTICS_PATH}/{RUN_ID}.csv"
+            write_header = not os.path.exists(statistics_file_path)
+            statistics_df.to_csv(
+                statistics_file_path, mode="a", header=write_header, index=False
+            )
 
     print("all histories:", len(accounts_histories))
     terminated_histories: Dict[str, AccountHistory] = {
@@ -385,6 +398,7 @@ sas: SASsession | None = None
 try:
     timestamp: str = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
     sas = get_session()
+    sas.set_batch(True)  # to suppress logs in the terminal
 
     initialize(sas)
     run_final(sas)
