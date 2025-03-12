@@ -32,9 +32,11 @@ SAS_CODES_PATH: Final[str] = os.path.join(SAS_DIRECTORY_PATH, "codes")
 SAS_DATA_PATH: Final[str] = os.path.join(SAS_DIRECTORY_PATH, "data")
 INITIAL_PATH: Final[str] = os.path.join(SAS_CODES_PATH, "initial.sas")
 ABT_CODE_PATH: Final[str] = os.path.join(SAS_CODES_PATH, "abt_code.sas")
+STATISTICS_PATH: Final[str] = os.path.join(PYTHON_DIRECTORY_PATH, "statistics")
 
 os.makedirs(SAS_DATA_PATH, exist_ok=True)
 os.makedirs(HISTORIES_PATH, exist_ok=True)
+os.makedirs(STATISTICS_PATH, exist_ok=True)
 
 
 def get_session() -> saspy.SASsession:
@@ -214,7 +216,7 @@ def run_final(
             total_cost += period_cost
             statistics = get_statistics()
             # save statistics to csv file for each period
-            with open(f"{PYTHON_DIRECTORY_PATH}/statistics/{RUN_ID}.csv", "a") as f:
+            with open(f"{STATISTICS_PATH}/{RUN_ID}.csv", "a") as f:
                 f.write(
                     f"{timestamp},{next_period},{statistics['total_paid_installments']},{statistics['total_amount']},{total_cost},{statistics['total_amount'] - total_cost}\n"
                 )
