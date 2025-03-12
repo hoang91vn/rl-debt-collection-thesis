@@ -7,10 +7,15 @@ from util import (
     get_account_period_info,
     get_all_cidaids,
     get_previous_period,
+    save_histories,
 )
 from decision import decide_for_all
-from typing import Dict, List, cast, Final
+from typing import Dict, List, TypedDict, cast, Final
 import traceback
+from environment import get_action_cost
+
+# this name will be used to store the corresponding data for the run
+RUN_ID: Final[str] = "default"
 
 # SAS code constants
 N_DAY: Final[int] = 1
@@ -81,6 +86,7 @@ def run_final(
     print("n_prod_periods:", n_prod_periods)
 
     accounts_histories: Dict[str, AccountHistory] = {}
+    total_cost: float = 0.0
 
     # the main loop processing from period to period
     for fi in range(2, n_prod_periods + 2):
@@ -173,9 +179,11 @@ def run_final(
             decisions: Dict[str, str] = decide_for_all(
                 aids_to_decide, accounts_histories
             )
+            period_cost: float = 0.0
             for aid in aids_to_decide:
                 try:
                     actions_str = decisions[aid]
+                    period_cost += get_action_cost(actions_str)
                 except KeyError:
                     print("aid not found in decisions:", aid)
                     raise KeyError
@@ -200,13 +208,175 @@ def run_final(
                     action_nr += 1
             collection_actions_sas.append(new_collection_actions_rows, True)
 
+            debtor_behavior(sas, abt_score)
             sas.submit("%movemonth2(&fiperiod,&fiperiod1);")
+
+            total_cost += period_cost
+            statistics = get_statistics()
+            # save statistics to csv file for each period
+            with open(f"{PYTHON_DIRECTORY_PATH}/statistics/{RUN_ID}.csv", "a") as f:
+                f.write(
+                    f"{timestamp},{next_period},{statistics['total_paid_installments']},{statistics['total_amount']},{total_cost},{statistics['total_amount'] - total_cost}\n"
+                )
 
     print("all histories:", len(accounts_histories))
     terminated_histories: Dict[str, AccountHistory] = {
         k: v for k, v in accounts_histories.items() if v["terminated"]
     }
     print("terminated histories:", len(terminated_histories))
+    save_histories(terminated_histories, HISTORIES_PATH, RUN_ID)
+
+    # move from SASDATAPATH TO SASDATAPATH with postfix
+    os.rename(
+        f"{SAS_DATA_PATH}",
+        f"{SAS_DATA_PATH}_{RUN_ID}",
+    )
+
+
+def debtor_behavior(
+    sas: saspy.SASsession,
+    abt_score: pd.DataFrame,
+) -> None:
+    """
+    Computes the the debtor reactions for each account to the actions in the last period. The results are directly written to the SAS sequences table.
+    """
+    log = sas.submit(
+        """
+    proc sort data=collection_actions out=actions;
+    by aid action_nr;
+    run;
+    data sequences;
+    retain seg 0;
+    set actions;
+    by aid;
+    if first.aid then seg=0;
+    seg=seg+(10**(action_nr-1))*action;
+    if last.aid;
+    positive_reaction=0;
+    keep aid seg positive_reaction;
+    run;
+    """
+    )
+    with open(f"{SAS_DATA_PATH}/sas.log", "a") as f:
+        f.write(log["LOG"])
+    sequences_sas = sas.sasdata("sequences")
+    sequences = sequences_sas.to_df()
+    for _, row in sequences.iterrows():
+        aid: str = row["aid"]
+        action: str = str(int(row["seg"]))
+        positive_reaction: int = 0
+        abt_row: pd.Series = abt_score[abt_score["aid"] == aid].iloc[0]
+        coll_status = str(int(float(abt_row["coll_status"])))
+        match coll_status:
+            case "2":
+                if action in [
+                    "321",
+                    "322",
+                    "332",
+                    "221",
+                    "334",
+                    "22",
+                    "21",
+                    "31",
+                    "1",
+                    "2",
+                ]:
+                    positive_reaction = 1
+            case "3":
+                if action in [
+                    "321",
+                    "322",
+                    "332",
+                    "221",
+                    "334",
+                    "22",
+                    "21",
+                    "31",
+                    "1",
+                    "2",
+                ]:
+                    positive_reaction = 1
+            case "4":
+                if action in [
+                    "321",
+                    "322",
+                    "332",
+                    "221",
+                    "334",
+                    "22",
+                    "21",
+                    "31",
+                    "1",
+                    "2",
+                ]:
+                    positive_reaction = 1
+            case "5":
+                if action in [
+                    "321",
+                    "322",
+                    "332",
+                    "221",
+                    "334",
+                    "22",
+                    "21",
+                    "31",
+                    "1",
+                    "2",
+                ]:
+                    positive_reaction = 1
+            case "6":
+                if action in [
+                    "321",
+                    "322",
+                    "332",
+                    "221",
+                    "334",
+                    "22",
+                    "21",
+                    "31",
+                    "1",
+                    "2",
+                ]:
+                    positive_reaction = 1
+
+        sequences.loc[sequences["aid"] == aid, "positive_reaction"] = positive_reaction
+    sas.df2sd(sequences, table="sequences", replace=True)
+
+
+Statistics = TypedDict(
+    "Statistics", {"total_paid_installments": int, "total_amount": float}
+)
+
+
+def get_statistics() -> Statistics:
+    """
+    Reads the production and transactions data and computes the total paid installments and total amount paid.
+    """
+    production = pd.read_sas(
+        f"{SAS_DATA_PATH}\\production.sas7bdat", format="sas7bdat", encoding="utf-8"
+    )
+    transactions = pd.read_sas(
+        f"{SAS_DATA_PATH}\\transactions.sas7bdat", format="sas7bdat", encoding="utf-8"
+    )
+    # for every account in production, find the last row of given aid in transactions and then multiply the installment from production by paid_installments in transactions
+    # then sum all of the values
+    total_paid_installments: int = 0
+    total_amount: float = 0.0
+    for _, row in production.iterrows():
+        aid = row["aid"]
+        installment = row["installment"]
+        aid_transactions = transactions[transactions["aid"] == aid]
+        if aid_transactions.empty:
+            continue
+        last_transaction = aid_transactions.iloc[-1]
+        paid_installments = last_transaction["paid_installments"]
+        paid_amount: float = installment * paid_installments
+        total_paid_installments += paid_installments
+        total_amount += paid_amount
+    return {
+        "total_paid_installments": total_paid_installments,
+        "total_amount": total_amount,
+    }
 
 
 sas: SASsession | None = None

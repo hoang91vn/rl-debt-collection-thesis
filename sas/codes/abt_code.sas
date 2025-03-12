@@ -497,29 +497,6 @@ run;
 %mend vanilla_actions;
 
 %macro movemonth2(period,period1);
-/*debtor behaviour*/
-proc sort data=collection_actions out=actions;
-by aid action_nr;
-run;
-data sequences;
-retain seg 0;
-set actions;
-by aid;
-if first.aid then seg=0;
-seg=seg+(10**(action_nr-1))*action;
-if last.aid;
-positive_reaction=0;
-if coll_status=2 and seg in (321,322,332,221,334,22,21,31,1,2) then positive_reaction=1;
-if coll_status=3 and seg in (321,322,332,221,334,22,21,31,1,2) then positive_reaction=1;
-if coll_status=4 and seg in (321,322,332,221,334,22,21,31,1,2) then positive_reaction=1;
-if coll_status=5 and seg in (321,322,332,221,334,22,21,31,1,2) then positive_reaction=1;
-if coll_status=6 and seg in (321,322,332,221,334,22,21,31,1,2) then positive_reaction=1;
-
-/*in future add some share*/
-/*if ranuni(&seed)<0.5 then positive_reaction=positive_reaction; else positive_reaction=0;*/
-keep aid seg positive_reaction;
-run;
-/*debtor behaviour*/
 
 
 
