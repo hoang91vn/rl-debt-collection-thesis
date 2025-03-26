@@ -33,6 +33,9 @@ SAS_DATA_PATH: Final[str] = os.path.join(SAS_DIRECTORY_PATH, "data")
 INITIAL_PATH: Final[str] = os.path.join(SAS_CODES_PATH, "initial.sas")
 ABT_CODE_PATH: Final[str] = os.path.join(SAS_CODES_PATH, "abt_code.sas")
 STATISTICS_PATH: Final[str] = os.path.join(PYTHON_DIRECTORY_PATH, "statistics")
+SASPY_CONFIG_PATH: Final[str] = os.path.join(
+    PYTHON_DIRECTORY_PATH, ".saspy", "sascfg_personal.py"
+)
 
 os.makedirs(SAS_DATA_PATH, exist_ok=True)
 os.makedirs(HISTORIES_PATH, exist_ok=True)
@@ -40,7 +43,7 @@ os.makedirs(STATISTICS_PATH, exist_ok=True)
 
 
 def get_session() -> saspy.SASsession:
-    sas = saspy.SASsession(cfgname="winlocal")
+    sas = saspy.SASsession(cfgname="winlocal", cfgfile=SASPY_CONFIG_PATH)
     return sas
 
 

@@ -18,6 +18,12 @@ python -m pip install -r requirements.txt
 
 ## Usage
 
+Make sure that you have your virtual environment activated
+
+```bash
+venv\Scripts\activate
+```
+
 To run the project, execute the following command:
 
 ```bash
