@@ -18,7 +18,7 @@ python -m pip install -r requirements.txt
 
 ## Usage
 
-Make sure that you have your virtual environment activated
+Make sure that you have your virtual environment activated by executing:
 
 ```bash
 venv\Scripts\activate
