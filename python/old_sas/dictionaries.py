@@ -56,3 +56,9 @@ class CollStat(Enum):
     POST_EXECUTION = 6
     CURED = 7
     WRITE_OFF = 8
+
+
+class Status(Enum):
+    A = 1
+    B = 2
+    C = 3

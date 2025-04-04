@@ -13,49 +13,39 @@ from dictionaries import (
     Homes,
     JobCode,
 )
+from tables_types import ClientsRow
 
 
 class Client:
     cid: str
     date_of_birth: str
-    gender: Literal[0, 1]
-    marital_status: MaritalStatus
+    gender: Gender
+    year: int
     job_code: JobCode
-    home: Homes
-    city: City
-    cars: Cars
     number_of_children: int
+    marital_status: MaritalStatus
+    city: City
+    home_status: Homes
+    cars: Cars
     income: int
     spendings: int
-    year: int
 
     def __init__(
         self,
-        cid: str,
-        date_of_birth: str,
-        gender: Literal[0, 1],
-        marital_status: MaritalStatus,
-        job_code: JobCode,
-        home: Homes,
-        city: City,
-        cars: Cars,
-        number_of_children: int,
-        income: int,
-        spendings: int,
-        year: int,
+        data: ClientsRow,
     ):
-        self.cid = cid
-        self.date_of_birth = date_of_birth
-        self.gender = gender
-        self.marital_status = marital_status
-        self.job_code = job_code
-        self.home = home
-        self.city = city
-        self.cars = cars
-        self.number_of_children = number_of_children
-        self.income = income
-        self.spendings = spendings
-        self.year = year
+        self.cid = data["cid"]
+        self.date_of_birth = data["date_of_birth"]
+        self.gender = data["gender"]
+        self.marital_status = data["marital_status"]
+        self.job_code = data["job_code"]
+        self.home_status = data["home_status"]
+        self.city = data["city"]
+        self.cars = data["cars"]
+        self.number_of_children = data["number_of_children"]
+        self.income = data["income"]
+        self.spendings = data["spendings"]
+        self.year = data["year"]
 
     def get_age(self) -> int:
         return self.year - datetime.strptime(self.date_of_birth, "%Y-%m-%d").year
@@ -87,23 +77,25 @@ class Client:
         date_of_birth_str: str = date_of_birth.strftime("%Y-%m-%d")
 
         client: Client = Client(
-            cid=cid,
-            cars=Cars.NO,
-            city=City(int(generator.random() * 3 + 1.5)),
-            date_of_birth=date_of_birth_str,
-            gender=cast(
-                Literal[0, 1],
-                max(0, min(int(generator.random() > (0.45 + pr / 20)), 1)),
-            ),
-            home=Homes(int(generator.random() * 2 + 1.5)),
-            job_code=JobCode.CONTRACT
-            if generator.random() < 0.4
-            else JobCode.OWNER_COMPANY,
-            marital_status=MaritalStatus.SINGLE,
-            number_of_children=0,
-            income=0,
-            spendings=0,
-            year=(date_of_birth + timedelta(days=365 * 18)).year,
+            ClientsRow(
+                cid=cid,
+                cars=Cars.NO,
+                city=City(int(generator.random() * 3 + 1.5)),
+                date_of_birth=date_of_birth_str,
+                gender=cast(
+                    Gender,
+                    max(0, min(int(generator.random() > (0.45 + pr / 20)), 1)),
+                ),
+                home_status=Homes(int(generator.random() * 2 + 1.5)),
+                job_code=JobCode.CONTRACT
+                if generator.random() < 0.4
+                else JobCode.OWNER_COMPANY,
+                marital_status=MaritalStatus.SINGLE,
+                number_of_children=0,
+                income=0,
+                spendings=0,
+                year=(date_of_birth + timedelta(days=365 * 18)).year,
+            )
         )
         client.refresh_income_and_spendings(generator)
         while client.year < current_date.year:
@@ -128,7 +120,12 @@ class Client:
         self.spendings = int(
             20
             * self.income
-            * (abs(generator.standard_normal()) + self.home.value + self.cars.value - 2)
+            * (
+                abs(generator.standard_normal())
+                + self.home_status.value
+                + self.cars.value
+                - 2
+            )
             / (8 * 20)
         )
 
@@ -181,21 +178,21 @@ class Client:
                 self.marital_status in [MaritalStatus.MARRIED, MaritalStatus.SINGLE]
                 or age > 25
             )
-            and self.home == Homes.WITH_PARENTS
+            and self.home_status == Homes.WITH_PARENTS
             and generator.random() < 0.7
         ):
-            self.home = Homes.RENTAL
+            self.home_status = Homes.RENTAL
         if (
             (
                 self.marital_status in [MaritalStatus.MARRIED, MaritalStatus.SINGLE]
                 or age > 25
             )
-            and self.home == Homes.WITH_PARENTS
+            and self.home_status == Homes.WITH_PARENTS
             and generator.random() < 0.2
         ):
-            self.home = Homes.OWNER
-        if self.home == Homes.RENTAL and generator.random() < 0.05:
-            self.home = Homes.OWNER
+            self.home_status = Homes.OWNER
+        if self.home_status == Homes.RENTAL and generator.random() < 0.05:
+            self.home_status = Homes.OWNER
         if generator.random() < 0.005:
             self.city = City(max(1, min(int(generator.random() * 3 + 1.5), 4)))
         if self.cars == Cars.NO and 20 < age <= 60 and generator.random() < 0.05:
@@ -230,7 +227,7 @@ class Client:
                 "gender": self.gender,
                 "marital_status": self.marital_status.value,
                 "job_code": self.job_code.value,
-                "home": self.home.value,
+                "home": self.home_status.value,
                 "city": self.city.value,
                 "cars": self.cars.value,
                 "number_of_children": self.number_of_children,
@@ -247,7 +244,7 @@ class Client:
             "gender": self.gender,
             "marital_status": self.marital_status.value,
             "job_code": self.job_code.value,
-            "home": self.home.value,
+            "home": self.home_status.value,
             "city": self.city.value,
             "cars": self.cars.value,
             "number_of_children": self.number_of_children,
