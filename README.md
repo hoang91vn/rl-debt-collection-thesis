@@ -16,8 +16,8 @@ To install the project, clone the repository and install the required dependenci
 ```bash
 git clone https://github.com/SKN-Business-Analytics/rl-debt-collection.git
 cd rl-debt-collection
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 python -m pip install -r requirements.txt
 ```
 

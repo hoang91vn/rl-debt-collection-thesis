@@ -1,12 +1,12 @@
-/* (c) Karol Przanowski */
+/** (c) Karol Przanowski */
 /* kprzan@sgh.waw.pl */
 
 
 
-data 
+data
 data.clients1(keep=cid data_of_birth gender)
 data.production1(keep=
-aid cid app_date period data_of_birth installment 
+aid cid app_date period data_of_birth installment
 n_installments loan_amount branch)
 
 data.production2(keep=
@@ -79,7 +79,7 @@ do app_date=&s_date to &e_date;
 		n=n+1;
 	end;
 end;
-format app_date data_of_birth yymmdd10. 
+format app_date data_of_birth yymmdd10.
 ;
 run;
 
@@ -114,32 +114,32 @@ do year=yearb+18 to year_e;
 	end; else do;
 		if marital_status=1 and age<60 and ranuni(&seed)<0.1 then
 			marital_status=4;
-		if number_of_children<1 and marital_status=4 
+		if number_of_children<1 and marital_status=4
 			and ranuni(&seed)<0.1 and age<45 then number_of_children=number_of_children+1;
-		if number_of_children=1 and marital_status=4 
+		if number_of_children=1 and marital_status=4
 			and ranuni(&seed)<0.05 and age<45 then number_of_children=number_of_children+1;
-		if number_of_children=2 and marital_status=4 
+		if number_of_children=2 and marital_status=4
 			and ranuni(&seed)<0.01 and age<45 then number_of_children=number_of_children+1;
-		if number_of_children>0 and age>45 and ranuni(&seed)<0.1 then 
+		if number_of_children>0 and age>45 and ranuni(&seed)<0.1 then
 			number_of_children=number_of_children-1;
 		if marital_status=4 and ranuni(&seed)<0.01 then marital_status=2;
 		if marital_status=4 and age>60 and ranuni(&seed)<0.1 then marital_status=3;
-		
-		if (marital_status=4 or age>25) and home_status=1 and ranuni(&seed)<0.7 
+
+		if (marital_status=4 or age>25) and home_status=1 and ranuni(&seed)<0.7
 			then home_status=2;
-		if (marital_status=4 or age>25) and home_status=1 and ranuni(&seed)<0.2 
+		if (marital_status=4 or age>25) and home_status=1 and ranuni(&seed)<0.2
 			then home_status=3;
-		if home_status=2 and ranuni(&seed)<0.05 
+		if home_status=2 and ranuni(&seed)<0.05
 			then home_status=3;
 		if ranuni(&seed)<0.005 then do;
 			city=int(ranuni(&seed)*3+1.5);
 			if city>4 then city=4;
 			if city<1 then city=1;
 		end;
-		if cars=1 and 20<age<=60 and ranuni(&seed)<0.05 then cars=2; 
-		if cars=2 and ranuni(&seed)<0.001 then cars=1; 
+		if cars=1 and 20<age<=60 and ranuni(&seed)<0.05 then cars=2;
+		if cars=2 and ranuni(&seed)<0.001 then cars=1;
 
-		if job_code ne 4 and age>50 and ranuni(&seed)<0.1 then do; 
+		if job_code ne 4 and age>50 and ranuni(&seed)<0.1 then do;
 			job_code=4;
 			&income_i_spendings;
 		end;
@@ -164,9 +164,9 @@ do year=yearb+18 to year_e;
 			&income_i_spendings;
 		end;
 	end;
-	if year>=year_s then output;	
+	if year>=year_s then output;
 end;
-drop 
+drop
 year_s year_e yearb;
 run;
 
@@ -183,7 +183,7 @@ year=year(app_date);
 set data.clients_all key=klucz / unique;
 if _iorc_ ne 0 then do;
 	_error_=0;
-	put 'byly b³edy w cid' year= cid=;
+	put 'byly bï¿½edy w cid' year= cid=;
 end;
 if age<100;
 run;
@@ -195,7 +195,7 @@ year=year(app_date);
 set data.clients_all key=klucz / unique;
 if _iorc_ ne 0 then do;
 	_error_=0;
-	put 'byly b³edy w cid';
+	put 'byly bï¿½edy w cid';
 end;
 if age<100;
 run;
