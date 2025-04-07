@@ -325,6 +325,18 @@ class Account:
             branch=branch,
         )
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "aid": self.aid,
+            "cid": self.cid,
+            "app_date": self.app_date,
+            "period": self.period,
+            "installment": self.installment,
+            "n_installments": self.n_installments,
+            "loan_amount": self.loan_amount,
+            "branch": self.branch.value,
+        }
+
 
 seed: int = 123456789
 generator: np.random.Generator = np.random.default_rng(seed=seed)

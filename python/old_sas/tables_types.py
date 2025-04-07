@@ -29,13 +29,28 @@ ClientsRow = TypedDict(
     },
 )
 
+AccountsRow = TypedDict(
+    "AccountsRow",
+    {
+        "cid": str,
+        "aid": str,
+        "app_date": str,
+        "period": int,
+        "installment": int,
+        "n_installments": int,
+        "loan_amount": int,
+        "branch": Branch,
+        "year": int,
+    },
+)
+
 TransactionsRow = TypedDict(
     "TransactionsRow",
     {
         "cid": str,
         "aid": str,
         "period": int,
-        "fin_period": str,
+        "fin_period": int,
         "status": Status,
         "coll_status": CollStat,
         "due_installments": int,
