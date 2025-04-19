@@ -1,18 +1,19 @@
 import os
+import numpy as np
 import saspy
 from saspy import SASsession
 import pandas as pd
-from special_types import AccountHistory, CidAid
-from util import (
+from other.special_types import AccountHistory, CidAid
+from other.util import (
     get_account_period_info,
     get_all_cidaids,
     get_previous_period,
     save_histories,
 )
-from decision import decide_for_all
+from other.decision import decide_for_all
 from typing import Dict, List, TypedDict, cast, Final
 import traceback
-from environment import get_action_cost
+from other.environment import get_action_cost
 
 # this name will be used to store the corresponding data for the run
 RUN_ID: Final[str] = "default6"
@@ -20,13 +21,14 @@ RUN_ID: Final[str] = "default6"
 # SAS code constants
 N_DAY: Final[int] = 1
 SEED: Final[int] = 1
-S_DATE: Final[str] = "01jan2000"
-E_DATE: Final[str] = "28feb2001"
+S_DATE: Final[str] = "01may2024"
+E_DATE: Final[str] = "01may2026"
 
 # other constants
 ROOT_PATH: Final[str] = os.path.dirname(os.path.dirname(__file__))
 SAS_DIRECTORY_PATH: Final[str] = os.path.join(ROOT_PATH, "sas")
 PYTHON_DIRECTORY_PATH: Final[str] = os.path.join(ROOT_PATH, "python")
+SOURCE_DIRECTORY_PATH: Final[str] = os.path.join(ROOT_PATH, "src")
 HISTORIES_PATH: Final[str] = os.path.join(PYTHON_DIRECTORY_PATH, "histories")
 SAS_CODES_PATH: Final[str] = os.path.join(SAS_DIRECTORY_PATH, "codes")
 SAS_DATA_PATH: Final[str] = os.path.join(SAS_DIRECTORY_PATH, "data")
@@ -34,7 +36,7 @@ INITIAL_PATH: Final[str] = os.path.join(SAS_CODES_PATH, "initial.sas")
 ABT_CODE_PATH: Final[str] = os.path.join(SAS_CODES_PATH, "abt_code.sas")
 STATISTICS_PATH: Final[str] = os.path.join(PYTHON_DIRECTORY_PATH, "statistics")
 SASPY_CONFIG_PATH: Final[str] = os.path.join(
-    PYTHON_DIRECTORY_PATH, ".saspy", "sascfg_personal.py"
+    SOURCE_DIRECTORY_PATH, ".saspy", "sascfg_personal.py"
 )
 
 os.makedirs(SAS_DATA_PATH, exist_ok=True)
@@ -356,7 +358,8 @@ def debtor_behavior(
                     "2",
                 ]:
                     positive_reaction = 1
-
+        # 50% chance of positive reaction
+        positive_reaction = np.random.choice([0, 1], p=[0.5, 0.5])
         sequences.loc[sequences["aid"] == aid, "positive_reaction"] = positive_reaction
     sas.df2sd(sequences, table="sequences", replace=True)
 

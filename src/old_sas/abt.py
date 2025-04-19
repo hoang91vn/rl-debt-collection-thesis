@@ -261,8 +261,8 @@ def simulate(
         # generate new accounts
         new_accounts: List[Account] = []
         new_transactions: List[TransactionsRow] = []
-        for index, client in enumerate(new_clients):
-            aid: str = generate_aid(current_date, "ins", index + 1)
+        for client_index, client in enumerate(new_clients):
+            aid: str = generate_aid(current_date, "ins", client_index + 1)
             account: Account = Account.generate_account(
                 client, aid, current_date, generator
             )
@@ -303,12 +303,11 @@ def simulate(
             # generate transactions
             new_transactions: List[TransactionsRow] = []
             # get transactions for the last period where status == A
-            transactions_current_period: pd.DataFrame = transactions_df[
-                (transactions_df["period"] == current_period)
-                & (transactions_df["status"] == Status.A)
-            ]
+            # transactions_current_period: pd.DataFrame = transactions_df[
+            #     (transactions_df["period"] == current_period)
+            #     & (transactions_df["status"] == Status.A)
+            # ]
             new_collection_actions: List[CollectionActionsRow] = []
-            ob: int = 0
             last_actions_current_period_df = collection_actions_df.loc[
                 collection_actions_df["period"] == current_period
             ]
@@ -317,98 +316,114 @@ def simulate(
                 .last()  # or .iloc[-1] if you need something else
                 .to_dict()
             )
-            for index, transaction in transactions_current_period.iterrows():
-                if transaction["aid"] in last_actions:
-                    last_action: str = last_actions[transaction["aid"]]
-                else:
-                    last_action: str = "0"
-                is_reaction_positive: bool = calculate_positive_reaction(
-                    last_action, generator
-                )
-                appropriate_matrix = (
-                    data_mat_positive if is_reaction_positive else data_mat
-                )
-                act_due: int = transaction["due_installments"]
-                act_paid: int = transaction["paid_installments"]
+            counts_array: np.ndarray = np.zeros(13, dtype=int)
+            stat: pd.DataFrame = (
+                summary_abt[["act_due", "score"]]
+                .groupby("act_due")
+                .agg({"score": "count"})
+            )
+            for i in range(0, 13):
+                if i in stat.index:
+                    counts_array[i] = stat.loc[i, "score"]
 
-                due_installments: int = transaction["due_installments"]
-                paid_installments: int = transaction["paid_installments"]
-                coll_status: CollStat = transaction["coll_status"]
-                status: Status = transaction["status"]
-                appropriate_account = accounts_df[
-                    accounts_df["aid"] == transaction["aid"]
-                ].iloc[0]
-                pay_days: int = 0
+            print(counts_array)
 
-                ob += 1
-                if 0 <= act_due < 12:
-                    probability: float = 0.0
-                    random_number: float = generator.random()
-                    for potential_due_installments in range(13):
-                        probability += appropriate_matrix[
-                            act_due, potential_due_installments
-                        ]
-                        if random_number <= probability:
-                            # Movement from act_due to to
-                            due_installments = potential_due_installments
-                            newly_paid_installments: int = (
-                                1 + act_due - potential_due_installments
-                            )
-                            paid_installments = act_paid + newly_paid_installments
-                            if act_due < potential_due_installments:
-                                # No payment
-                                pay_days = 0
-                            else:
-                                # Payment
-                                if (
-                                    paid_installments
-                                    > appropriate_account["n_installments"]
-                                ):
-                                    paid_installments = appropriate_account[
-                                        "n_installments"
-                                    ]
-                                if act_due < 2:
-                                    pay_days = -int(
-                                        15 * abs(generator.normal(0, 1)) / 4
-                                    )
-                                else:
-                                    pay_days = int(15 * generator.normal(0, 1) / 4)
-                            break
-
-                if paid_installments == appropriate_account["n_installments"]:
-                    due_installments = 0
-                    status = Status.C
-                elif due_installments == 12:
-                    status = Status.B
-
-                coll_status = get_new_coll_status(
-                    due_installments, transaction["coll_status"]
-                )
-
-                new_transaction: TransactionsRow = TransactionsRow(
-                    aid=transaction["aid"],
-                    cid=transaction["cid"],
-                    period=get_next_period(current_period),
-                    fin_period=get_next_period(current_period),
-                    status=status,
-                    coll_status=coll_status,
-                    due_installments=due_installments,
-                    paid_installments=paid_installments,
-                    pay_days=pay_days,
-                )
-                new_transactions.append(new_transaction)
-
-                if new_transaction["status"] == Status.A:
-                    # choose action
-                    action: str = choose_action()
-                    collection_action: CollectionActionsRow = CollectionActionsRow(
-                        action=action,
-                        cid=transaction["cid"],
-                        aid=transaction["aid"],
-                        period=get_next_period(current_period),
-                        coll_status=new_transaction["coll_status"],
+            for act_due_group_value, act_due_group in summary_abt.sort_values(
+                by=["act_due", "score"], ascending=[True, False]
+            ).groupby("act_due"):
+                ob: int = 0
+                for _, summary_row in act_due_group.iterrows():
+                    ob += 1
+                    if summary_row["aid"] in last_actions:
+                        last_action: str = last_actions[summary_row["aid"]]
+                    else:
+                        last_action: str = "0"
+                    is_reaction_positive: bool = calculate_positive_reaction(
+                        last_action, generator
                     )
-                    new_collection_actions.append(collection_action)
+                    appropriate_matrix = (
+                        data_mat_positive if is_reaction_positive else data_mat
+                    )
+                    act_due: int = summary_row["act_due"]
+                    act_paid: int = summary_row["act_paid_installments"]
+
+                    new_due_installments: int = act_due
+                    new_paid_installments: int = act_paid
+                    new_status: Status = summary_row["status"]
+                    pay_days: int = 0
+                    if 0 <= act_due < 12:
+                        probability: float = 0.0
+                        for potential_due_installments in range(12, -1, -1):
+                            probability: float = appropriate_matrix[
+                                act_due, 0:potential_due_installments
+                            ].sum()
+                            condition: bool = ob > probability * counts_array[act_due]
+                            if condition:
+                                # Movement from act_due to to
+                                new_due_installments = potential_due_installments
+                                newly_paid_installments: int = (
+                                    1 + act_due - potential_due_installments
+                                )
+                                new_paid_installments = (
+                                    act_paid + newly_paid_installments
+                                )
+                                if act_due < potential_due_installments:
+                                    # No payment
+                                    pay_days = 0
+                                else:
+                                    # Payment
+                                    if (
+                                        new_paid_installments
+                                        > summary_row["app_n_installments"]
+                                    ):
+                                        new_paid_installments = summary_row[
+                                            "app_n_installments"
+                                        ]
+                                    if act_due < 2:
+                                        pay_days = -int(
+                                            15 * abs(generator.normal(0, 1)) / 4
+                                        )
+                                    else:
+                                        pay_days = int(15 * generator.normal(0, 1) / 4)
+                                break
+                            # probability += appropriate_matrix[
+                            #     act_due, potential_due_installments
+                            # ]
+
+                    if new_paid_installments == summary_row["app_n_installments"]:
+                        new_due_installments = 0
+                        new_status = Status.C
+                    elif new_due_installments == 12:
+                        new_status = Status.B
+
+                    new_coll_status = get_new_coll_status(
+                        new_due_installments, summary_row["coll_status"]
+                    )
+
+                    new_transaction: TransactionsRow = TransactionsRow(
+                        aid=summary_row["aid"],
+                        cid=summary_row["cid"],
+                        period=get_next_period(current_period),
+                        fin_period=get_next_period(current_period),
+                        status=new_status,
+                        coll_status=new_coll_status,
+                        due_installments=new_due_installments,
+                        paid_installments=new_paid_installments,
+                        pay_days=pay_days,
+                    )
+                    new_transactions.append(new_transaction)
+
+                    if new_transaction["status"] == Status.A:
+                        # choose action
+                        action: str = choose_action()
+                        collection_action: CollectionActionsRow = CollectionActionsRow(
+                            action=action,
+                            cid=summary_row["cid"],
+                            aid=summary_row["aid"],
+                            period=get_next_period(current_period),
+                            coll_status=new_transaction["coll_status"],
+                        )
+                        new_collection_actions.append(collection_action)
             # add new collection actions to dataframe
             new_collection_actions_df: pd.DataFrame = pd.DataFrame(
                 [action for action in new_collection_actions]
@@ -425,7 +440,6 @@ def simulate(
             )
             pass
         if is_last_day_of_year(current_date):
-            print(clients_df)
             clients = Client.get_list_from_dataframe(clients_df)
             for client in clients:
                 client.simulate_next_year(generator=generator)

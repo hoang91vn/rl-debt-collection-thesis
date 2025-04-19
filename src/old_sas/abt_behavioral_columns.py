@@ -191,7 +191,7 @@ def make_summary_abt(period: int) -> pd.DataFrame:
         ),
     )
     cumulative_abt_base = pd.DataFrame(columns=abt_base_current_period.columns)
-    for i in range(max_length + 1, 1, -1):
+    for i in range(max_length - 1, -1, -1):
         requested_period = get_relative_period(period, -i)
         try:
             abt_base_tmp = pd.read_csv(
@@ -255,24 +255,26 @@ def make_summary_abt(period: int) -> pd.DataFrame:
         for length in lengths:
             # get last $length frows from abt_aid_rows
             last_length_rows = abt_aid_rows[
-                abt_aid_rows["period"] >= get_relative_period(period, -length)
+                abt_aid_rows["period"] >= get_relative_period(period, -length + 1)
             ]
 
             for variable in aggregated_variables:
                 for statistic in statistics:
-                    if statistic == "Mean":
-                        agg_value = last_length_rows[variable].mean(skipna=True)
-                    elif statistic == "Max":
-                        agg_value = last_length_rows[variable].max(skipna=True)
-                    elif statistic == "Min":
-                        agg_value = last_length_rows[variable].min(skipna=True)
-                    else:
-                        agg_value = np.nan
+                    match statistic:
+                        case "Mean":
+                            agg_value = last_length_rows[variable].mean(skipna=True)
+                        case "Max":
+                            agg_value = last_length_rows[variable].max(skipna=True)
+                        case "Min":
+                            agg_value = last_length_rows[variable].min(skipna=True)
+                        case _:
+                            agg_value = np.nan
 
                     nmiss = sum(pd.isna(last_length_rows[variable]))
-                    row_output[f"agr{length}_{statistic}_{variable}"] = (
-                        agg_value if nmiss <= 1 else np.nan
-                    )
+                    if nmiss != 0 or len(last_length_rows) != length:
+                        row_output[f"agr{length}_{statistic}_{variable}"] = np.nan
+                    else:
+                        row_output[f"agr{length}_{statistic}_{variable}"] = agg_value
                     row_output[f"ags{length}_{statistic}_{variable}"] = agg_value
         # Append row output to the DataFrame
         data_output = pd.concat(
@@ -296,6 +298,8 @@ def make_summary_abt(period: int) -> pd.DataFrame:
                 normalized_data_output[column] = (
                     data_output[column] - data_output[column].mean()
                 ) / data_output[column].std()
+            # fill missing values with 0
+            normalized_data_output[column] = normalized_data_output[column].fillna(0)
     # save normalized data
     normalized_data_output.to_csv(
         os.path.join(
@@ -375,6 +379,24 @@ def make_summary_abt(period: int) -> pd.DataFrame:
         - 1 * normalized_data_output.get("act_n_cus_arrears", 0)
         - 2 * normalized_data_output.get("ags12_Max_CMax_Due", 0)
         + 5 * (normalized_data_output.get("ags12_Max_CMax_Due", 0) == 0)
+    )
+
+    # normalize score and scorem
+    data_output["score"] = (
+        data_output["score"] - data_output["score"].mean()
+    ) / data_output["score"].std()
+    data_output["scorem"] = (
+        data_output["scorem"] - data_output["scorem"].mean()
+    ) / data_output["scorem"].std()
+
+    # score=sum(score,rannor(&seed)/2);
+    # scorem=sum(scorem,rannor(&seed)/2);
+
+    data_output["score"] = (
+        data_output["score"] + np.random.normal(0, 1, len(data_output)) / 2
+    )
+    data_output["scorem"] = (
+        data_output["scorem"] + np.random.normal(0, 1, len(data_output)) / 2
     )
 
     # Return the processed DataFrame
