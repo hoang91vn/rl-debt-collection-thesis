@@ -1,5 +1,6 @@
+from enum import Enum
 import pandas as pd
-from typing import Dict, List, Union, Final
+from typing import Any, Dict, List, Union, Final
 from other.special_types import (
     TransactionsData,
     AccountPeriodInfo,
@@ -13,6 +14,10 @@ EXCLUDED_ABT_COLUMNS: Final[List[str]] = ["cid", "aid", "period"]
 
 
 def get_relative_period(period: int, month_change: int) -> int:
+    """
+    >>> get_relative_period(202412, 15)
+    202603
+    """
     year: int = period // 100
     month: int = period % 100
     month += month_change
@@ -23,6 +28,19 @@ def get_relative_period(period: int, month_change: int) -> int:
         year -= 1
         month += 12
     return year * 100 + month
+
+
+def get_month_period_difference(period1: int, period2: int) -> int:
+    """
+    Returns the number of months between two periods in format yyyymm.
+    >>> get_month_period_difference(202401, 202809)
+    56
+    """
+    year1: int = period1 // 100
+    month1: int = period1 % 100
+    year2: int = period2 // 100
+    month2: int = period2 % 100
+    return (year2 - year1) * 12 + (month2 - month1)
 
 
 def get_previous_period(period: str) -> str:
@@ -37,6 +55,16 @@ def get_previous_period(period: str) -> str:
     else:
         month -= 1
     return f"{year}{month:02d}"
+
+
+def get_type(type_to_digest: type) -> Dict[str, Any]:
+    mapping: Dict[str, Any] = {}
+    for key, value in type_to_digest.__annotations__.items():
+        if issubclass(value, Enum):
+            mapping[key] = value._member_type_  # type: ignore
+        else:
+            mapping[key] = value
+    return mapping
 
 
 def get_all_cidaids(transactions: pd.DataFrame, period: str) -> List[CidAid]:

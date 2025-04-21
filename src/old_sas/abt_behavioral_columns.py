@@ -1,11 +1,12 @@
 import os
+from typing import List
 import pandas as pd
 import numpy as np
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from old_sas.dictionaries import Status, CollStat
-from old_sas.constants import RUN_DATA_PATH, CURRENT_DIR, PLAYGROUND_DIR
-from other.util import get_relative_period
+from old_sas.tables_types import AbtBaseRow
+from other.util import get_relative_period, get_type
 
 
 def make_production_df(
@@ -37,7 +38,6 @@ def make_abt_base(
         )
         & (transactions_df["period"] <= period)
     ]
-    print(filtered_transactions.shape)
 
     # Merge filtered transactions with production data on 'aid'
     abt_base_tmp = pd.merge(
@@ -180,60 +180,49 @@ def make_abt_base(
     return abt_base
 
 
-def make_summary_abt(period: int) -> pd.DataFrame:
+def make_summary_abt(period: int, data_path: str) -> pd.DataFrame:
     max_length: int = 12
 
     # read all abt_base tables since max_length months ago
     abt_base_current_period: pd.DataFrame = pd.read_csv(
         os.path.join(
-            RUN_DATA_PATH,
+            data_path,
             f"abt_base_{period}.csv",
         ),
+        dtype=get_type(AbtBaseRow),
     )
-    cumulative_abt_base = pd.DataFrame(columns=abt_base_current_period.columns)
+    abt_bases: List[pd.DataFrame] = []
     for i in range(max_length - 1, -1, -1):
         requested_period = get_relative_period(period, -i)
         try:
             abt_base_tmp = pd.read_csv(
                 os.path.join(
-                    RUN_DATA_PATH,
+                    data_path,
                     f"abt_base_{requested_period}.csv",
                 ),
+                dtype=get_type(AbtBaseRow),
             )
-            cumulative_abt_base = pd.concat(
-                [cumulative_abt_base, abt_base_tmp], ignore_index=True
-            )
+            abt_bases.append(abt_base_tmp)
         except FileNotFoundError:
             print(f"File not found for period {requested_period}")
+    cumulative_abt_base: pd.DataFrame = pd.concat(
+        abt_bases, ignore_index=True, copy=False
+    )
     # days=pay_days+15;
     # due=due_installments;
     cumulative_abt_base["Days"] = cumulative_abt_base["act_days"] + 15
     cumulative_abt_base["Due"] = cumulative_abt_base["act_due"]
-    # CMax_Days is the max of days for a given cid across all the accounts(aid)
-    cumulative_abt_base["CMax_Days"] = cumulative_abt_base.groupby(["cid", "period"])[
-        "Days"
-    ].transform("max")
-    # CMax_Due is the max of due for a given cid across all the accounts(aid)
-    cumulative_abt_base["CMax_Due"] = cumulative_abt_base.groupby(["cid", "period"])[
-        "Due"
-    ].transform("max")
+    # Calculate CMax_Days and CMax_Due as the max of Days and Due for a given cid across all accounts (aid)
+    cumulative_abt_base[["CMax_Days", "CMax_Due"]] = cumulative_abt_base.groupby(
+        ["cid", "period"]
+    )[["Days", "Due"]].transform("max")
 
-    # Convert period to datetime
-    period_date = datetime.strptime(str(period), "%Y%m")
-
-    # Generate periods
-    periods = [
-        (period_date - relativedelta(months=i)).strftime("%Y%m")
-        for i in range(max_length)
-    ]
     # Variable definitions
     aggregated_variables = ["Due", "Days", "CMax_Days", "CMax_Due"]
     statistics = ["Mean", "Max", "Min"]
-    lengths = [3, 6, 9, 12]
+    lengths: List[int] = [3, 6, 9, 12]
 
-    # Initialize output DataFrame
-    data_output = pd.DataFrame()
-
+    row_outputs: List[dict] = []
     # Process each row in the input data
     for _, row in abt_base_current_period.iterrows():
         # appropriate rows are ordered by period in ascending order
@@ -276,10 +265,9 @@ def make_summary_abt(period: int) -> pd.DataFrame:
                     else:
                         row_output[f"agr{length}_{statistic}_{variable}"] = agg_value
                     row_output[f"ags{length}_{statistic}_{variable}"] = agg_value
+        row_outputs.append(row_output)
         # Append row output to the DataFrame
-        data_output = pd.concat(
-            [data_output, pd.DataFrame([row_output])], ignore_index=True
-        )
+    data_output: pd.DataFrame = pd.DataFrame(row_outputs)
 
     # normalize all columns
     normalized_data_output = data_output.copy()
@@ -301,13 +289,13 @@ def make_summary_abt(period: int) -> pd.DataFrame:
             # fill missing values with 0
             normalized_data_output[column] = normalized_data_output[column].fillna(0)
     # save normalized data
-    normalized_data_output.to_csv(
-        os.path.join(
-            RUN_DATA_PATH,
-            f"abt_base_{period}_normalized.csv",
-        ),
-        index=False,
-    )
+    # normalized_data_output.to_csv(
+    #     os.path.join(
+    #         data_path,
+    #         f"abt_base_{period}_normalized.csv",
+    #     ),
+    #     index=False,
+    # )
 
     # Calculate scorem
     data_output["scorem"] = (

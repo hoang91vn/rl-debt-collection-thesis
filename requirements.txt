@@ -1,3 +1,5 @@
 saspy==5.102.1
 pandas==2.2.3
 numpy==2.2.4
+pytest
+pytest-benchmark
