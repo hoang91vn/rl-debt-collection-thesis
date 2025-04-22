@@ -4,7 +4,7 @@ import math
 from typing import Any, Dict, List, Tuple, TypedDict, cast
 import numpy as np
 import pandas as pd
-from old_sas.tables_types import (
+from tables_types import (
     CollectionActionsRow,
     TransactionsRow,
     ClientsRow,
@@ -12,7 +12,7 @@ from old_sas.tables_types import (
     ProductionRow,
     AccountsRow,
 )
-from old_sas.dictionaries import (
+from dictionaries import (
     Branch,
     Gender,
     JobCode,
@@ -23,13 +23,13 @@ from old_sas.dictionaries import (
     CollStat,
     Status,
 )
-from old_sas.clients_code import Client, Account
-from old_sas.abt_behavioral_columns import (
+from clients_code import Client, Account
+from abt_behavioral_columns import (
     make_abt_base,
     make_production_df,
     make_summary_abt,
 )
-from other.util import get_month_period_difference, get_relative_period, get_type
+from util import get_month_period_difference, get_relative_period, get_type
 import os
 import datetime
 import logging

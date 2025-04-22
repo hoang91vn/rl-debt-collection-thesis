@@ -3,17 +3,17 @@ import numpy as np
 import saspy
 from saspy import SASsession
 import pandas as pd
-from other.special_types import AccountHistory, CidAid
-from other.util import (
+from special_types import AccountHistory, CidAid
+from util import (
     get_account_period_info,
     get_all_cidaids,
     get_previous_period,
     save_histories,
 )
-from other.decision import decide_for_all
+from decision import decide_for_all
 from typing import Dict, List, TypedDict, cast, Final
 import traceback
-from other.environment import get_action_cost
+from environment import get_action_cost
 
 # this name will be used to store the corresponding data for the run
 RUN_ID: Final[str] = "default6"

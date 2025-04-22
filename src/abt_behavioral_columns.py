@@ -4,9 +4,9 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from old_sas.dictionaries import Status, CollStat
-from old_sas.tables_types import AbtBaseRow
-from other.util import get_relative_period, get_type
+from dictionaries import Status, CollStat
+from tables_types import AbtBaseRow
+from util import get_relative_period, get_type
 
 
 def make_production_df(

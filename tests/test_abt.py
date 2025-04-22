@@ -2,7 +2,7 @@ import pytest
 import datetime
 import os
 from typing import Final
-from old_sas.abt import (
+from abt import (
     run,
     generate_new_clients_accounts_transactions,
     make_production_df,
@@ -12,7 +12,7 @@ from old_sas.abt import (
     make_abt_base,
     make_summary_abt,
 )
-from old_sas.tables_types import (
+from tables_types import (
     ClientsRow,
     AccountsRow,
     TransactionsRow,

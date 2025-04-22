@@ -2,12 +2,12 @@ import os
 from typing import Final
 
 import pandas as pd
-from old_sas.abt import load_table
-from old_sas.clients_code import Client
+from abt import load_table
+from clients_code import Client
 import datetime
 import numpy as np
 
-from old_sas.tables_types import ClientsRow
+from tables_types import ClientsRow
 
 TEST_DATA_PATH: Final[str] = os.path.join(os.path.dirname(__file__), "test_data")
 

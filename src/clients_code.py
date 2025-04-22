@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import math
-from old_sas.dictionaries import (
+from dictionaries import (
     MaritalStatus,
     Branch,
     Cars,
@@ -13,7 +13,7 @@ from old_sas.dictionaries import (
     Homes,
     JobCode,
 )
-from old_sas.tables_types import ClientsRow
+from tables_types import ClientsRow
 
 
 class Client:

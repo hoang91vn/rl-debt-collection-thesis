@@ -1,7 +1,7 @@
 from enum import Enum
 import pandas as pd
 from typing import Any, Dict, List, Union, Final
-from other.special_types import (
+from special_types import (
     TransactionsData,
     AccountPeriodInfo,
     AccountHistory,

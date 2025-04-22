@@ -1,5 +1,5 @@
 from typing import TypedDict
-from old_sas.dictionaries import (
+from dictionaries import (
     Branch,
     Gender,
     JobCode,

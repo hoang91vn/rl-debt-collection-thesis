@@ -1,9 +1,9 @@
 from typing import Dict, List
-from other.special_types import (
+from special_types import (
     AccountHistory,
 )
 import numpy as np
-from other.environment import ACTIONS
+from environment import ACTIONS
 
 
 def decide_for_all(
