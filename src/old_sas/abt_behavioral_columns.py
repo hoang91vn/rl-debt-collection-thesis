@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import Dict, List
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -25,17 +25,14 @@ def make_production_df(
 def make_abt_base(
     production_df: pd.DataFrame, transactions_df: pd.DataFrame, period: int
 ) -> pd.DataFrame:
+    period_datetime: datetime = datetime.strptime(str(period), "%Y%m")
+    active_aids = transactions_df.loc[
+        (transactions_df["status"] == Status.A) & (transactions_df["period"] == period),
+        "aid",
+    ]
     # Filter transactions for active accounts in the given period and earlier
     filtered_transactions = transactions_df[
-        (
-            transactions_df["aid"].isin(
-                transactions_df.loc[
-                    (transactions_df["status"] == Status.A)
-                    & (transactions_df["period"] == period),
-                    "aid",
-                ]
-            )
-        )
+        (transactions_df["aid"].isin(active_aids))
         & (transactions_df["period"] <= period)
     ]
 
@@ -62,11 +59,7 @@ def make_abt_base(
     abt_base_tmp["act_due"] = abt_base_tmp["due_installments"]
     abt_base_tmp["act_age"] = abt_base_tmp["date_of_birth"].apply(
         lambda row: int(
-            (
-                datetime.strptime(str(period), "%Y%m")
-                - datetime.strptime(row, "%Y-%m-%d")
-            ).days
-            / 365.25
+            (period_datetime - datetime.strptime(row, "%Y-%m-%d")).days / 365.25
         )
     )
     abt_base_tmp["act_cc"] = (
@@ -82,100 +75,96 @@ def make_abt_base(
     abt_base_tmp["app_loan_amount"] = abt_base_tmp["loan_amount"]
     abt_base_tmp["app_n_installments"] = abt_base_tmp["n_installments"]
     abt_base_tmp["act_seniority"] = abt_base_tmp["fin_period"].apply(
-        lambda row: (
-            datetime.strptime(str(row), "%Y%m") - datetime.strptime(str(period), "%Y%m")
-        ).days
-        // 30
+        lambda row: (datetime.strptime(str(row), "%Y%m") - period_datetime).days // 30
         + 1,
     )
 
-    abt_base_tmp["act_cus_n_loans_hist"] = abt_base_tmp.groupby(["cid"])[
-        "aid"
-    ].transform("count")
-    abt_base_tmp["act_cus_n_statC"] = abt_base_tmp.groupby(["cid"])["status"].transform(
-        lambda x: (x == Status.C).sum()
-    )
-    abt_base_tmp["act_cus_n_statB"] = abt_base_tmp.groupby(["cid"])["status"].transform(
+    grouped_by_cid = abt_base_tmp.groupby(["cid"])
+
+    abt_base_tmp["act_cus_n_loans_hist"] = grouped_by_cid["aid"].transform("count")
+
+    abt_base_tmp["act_cus_n_statB"] = grouped_by_cid["status"].transform(
         lambda x: (x == Status.B).sum()
     )
-    abt_base_tmp["act_cus_n_loans_act"] = abt_base_tmp.groupby(["cid"])[
-        "aid"
-    ].transform("count")
-    abt_base_tmp["act_cus_sum_installment"] = abt_base_tmp.groupby(["cid"])[
-        "installment"
-    ].transform("sum")
-    abt_base_tmp["act_cus_dum_due"] = abt_base_tmp.groupby(["cid"])[
-        "due_installments"
-    ].transform(lambda x: (x > 0).sum())
-    abt_base_tmp["act_cus_sum_n_installments"] = abt_base_tmp.groupby(["cid"])[
+    abt_base_tmp["act_cus_n_statC"] = grouped_by_cid["status"].transform(
+        lambda x: (x == Status.C).sum()
+    )
+    abt_base_tmp["act_cus_n_loans_act"] = grouped_by_cid["aid"].transform("count")
+    abt_base_tmp["act_cus_sum_installment"] = grouped_by_cid["installment"].transform(
+        "sum"
+    )
+    abt_base_tmp["act_cus_sum_due"] = grouped_by_cid["due_installments"].transform(
+        lambda x: (x > 0).sum()
+    )
+    abt_base_tmp["act_cus_sum_n_installments"] = grouped_by_cid[
         "n_installments"
     ].transform("sum")
+    abt_base_tmp["act_cus_seniority"] = grouped_by_cid["act_seniority"].transform("max")
     abt_base_tmp["act_cus_utl"] = (
         abt_base_tmp["act_cus_sum_installment"]
         / abt_base_tmp["act_cus_sum_n_installments"]
     )
     abt_base_tmp["act_cus_dueutl"] = (
-        abt_base_tmp["act_cus_dum_due"] / abt_base_tmp["act_cus_sum_n_installments"]
+        abt_base_tmp["act_cus_sum_due"] / abt_base_tmp["act_cus_sum_n_installments"]
     )
     abt_base_tmp["act_cus_cc"] = (
         abt_base_tmp["act_cus_sum_installment"] + abt_base_tmp["spendings"]
     ) / abt_base_tmp["income"]
-    abt_base_tmp["act_cus_seniority"] = abt_base_tmp.groupby(["cid"])[
-        "act_seniority"
-    ].transform("max")
 
-    # Add nominal and other characteristics
-    abt_base_tmp["app_nom_branch"] = abt_base_tmp["branch"]
-    abt_base_tmp["app_nom_gender"] = abt_base_tmp["gender"]
-    abt_base_tmp["app_nom_job_code"] = abt_base_tmp["job_code"]
-    abt_base_tmp["app_number_of_children"] = abt_base_tmp["number_of_children"]
-    abt_base_tmp["app_nom_marital_status"] = abt_base_tmp["marital_status"]
-    abt_base_tmp["app_nom_city"] = abt_base_tmp["city"]
-    abt_base_tmp["app_nom_home_status"] = abt_base_tmp["home_status"]
-    abt_base_tmp["app_nom_cars"] = abt_base_tmp["cars"]
-    abt_base_tmp["app_spendings"] = abt_base_tmp["spendings"]
+    renaming_dictionary: Dict[str, str] = {
+        "branch": "app_nom_branch",
+        "gender": "app_nom_gender",
+        "job_code": "app_nom_job_code",
+        "number_of_children": "app_number_of_children",
+        "marital_status": "app_nom_marital_status",
+        "city": "app_nom_city",
+        "home_status": "app_nom_home_status",
+        "cars": "app_nom_cars",
+        "spendings": "app_spendings",
+    }
+    abt_base_tmp = abt_base_tmp.rename(columns=renaming_dictionary)
+
+    relevant_columns: List[str] = [
+        "cid",
+        "aid",
+        "act_days",
+        "act_paid_installments",
+        "act_utl",
+        "act_dueutl",
+        "act_due",
+        "act_age",
+        "act_cc",
+        "act_dueinc",
+        "act_loaninc",
+        "app_income",
+        "app_loan_amount",
+        "app_n_installments",
+        "act_seniority",
+        "app_nom_branch",
+        "app_nom_gender",
+        "app_nom_job_code",
+        "app_number_of_children",
+        "app_nom_marital_status",
+        "app_nom_city",
+        "app_nom_home_status",
+        "app_nom_cars",
+        "app_spendings",
+        "fin_period",
+        "status",
+        "coll_status",
+        "period",
+        "act_cus_seniority",
+        "act_cus_n_loans_hist",
+        "act_cus_n_statC",
+        "act_cus_n_statB",
+        "act_cus_n_loans_act",
+        "act_cus_utl",
+        "act_cus_dueutl",
+        "act_cus_cc",
+    ]
 
     # Filter for the given period and select relevant columns
-    abt_base = abt_base_tmp[abt_base_tmp["period"] == period][
-        [
-            "cid",
-            "aid",
-            "act_days",
-            "act_paid_installments",
-            "act_utl",
-            "act_dueutl",
-            "act_due",
-            "act_age",
-            "act_cc",
-            "act_dueinc",
-            "act_loaninc",
-            "app_income",
-            "app_loan_amount",
-            "app_n_installments",
-            "act_seniority",
-            "app_nom_branch",
-            "app_nom_gender",
-            "app_nom_job_code",
-            "app_number_of_children",
-            "app_nom_marital_status",
-            "app_nom_city",
-            "app_nom_home_status",
-            "app_nom_cars",
-            "app_spendings",
-            "fin_period",
-            "status",
-            "coll_status",
-            "period",
-            "act_cus_seniority",
-            "act_cus_n_loans_hist",
-            "act_cus_n_statC",
-            "act_cus_n_statB",
-            "act_cus_n_loans_act",
-            "act_cus_utl",
-            "act_cus_dueutl",
-            "act_cus_cc",
-        ]
-    ]
+    abt_base = abt_base_tmp.loc[abt_base_tmp["period"] == period, relevant_columns]
 
     return abt_base
 
@@ -208,6 +197,10 @@ def make_summary_abt(period: int, data_path: str) -> pd.DataFrame:
     cumulative_abt_base: pd.DataFrame = pd.concat(
         abt_bases, ignore_index=True, copy=False
     )
+    # remove rows for accounts which does not appear in the current period
+    cumulative_abt_base = cumulative_abt_base[
+        cumulative_abt_base["aid"].isin(abt_base_current_period["aid"].unique())
+    ]
     # days=pay_days+15;
     # due=due_installments;
     cumulative_abt_base["Days"] = cumulative_abt_base["act_days"] + 15
@@ -222,52 +215,149 @@ def make_summary_abt(period: int, data_path: str) -> pd.DataFrame:
     statistics = ["Mean", "Max", "Min"]
     lengths: List[int] = [3, 6, 9, 12]
 
-    row_outputs: List[dict] = []
-    # Process each row in the input data
-    for _, row in abt_base_current_period.iterrows():
-        # appropriate rows are ordered by period in ascending order
-        abt_aid_rows: pd.DataFrame = cumulative_abt_base[
-            cumulative_abt_base["aid"] == row["aid"]
+    data_output: pd.DataFrame = abt_base_current_period
+    print(data_output.shape)
+
+    for length in sorted(lengths, reverse=True):
+        rows_for_last_length = cumulative_abt_base.loc[
+            cumulative_abt_base["period"] >= get_relative_period(period, -length + 1),
+            ["aid", *aggregated_variables],
         ]
-        row_output = row.to_dict()
-        row_output["act_n_arrears"] = abt_aid_rows[abt_aid_rows["Due"] > 0].shape[0]
-        row_output["act_n_arrears_days"] = abt_aid_rows[
-            abt_aid_rows["Days"] > 15
-        ].shape[0]
-        row_output["act_n_good_days"] = abt_aid_rows[
-            (abt_aid_rows["Days"] > 0) & (abt_aid_rows["Days"] < 15)
-        ].shape[0]
-        row_output["act_n_cus_arrears"] = abt_aid_rows[
-            abt_aid_rows["CMax_Due"] > 0
-        ].shape[0]
-
-        for length in lengths:
-            # get last $length frows from abt_aid_rows
-            last_length_rows = abt_aid_rows[
-                abt_aid_rows["period"] >= get_relative_period(period, -length + 1)
+        grouped = rows_for_last_length.groupby(["aid"])[aggregated_variables]
+        counts = grouped.transform("count")
+        all_agr_variables_names = [
+            f"agr{length}_{statistic}_{variable}"
+            for variable in aggregated_variables
+            for statistic in statistics
+        ]
+        all_ags_variables_names = [
+            f"ags{length}_{statistic}_{variable}"
+            for variable in aggregated_variables
+            for statistic in statistics
+        ]
+        for statistic in statistics:
+            agr_variables_names = [
+                f"agr{length}_{statistic}_{variable}"
+                for variable in aggregated_variables
             ]
+            ags_variables_names = [
+                f"ags{length}_{statistic}_{variable}"
+                for variable in aggregated_variables
+            ]
+            match statistic:
+                case "Mean":
+                    means = grouped.transform("mean")
+                    rows_for_last_length[agr_variables_names] = means
+                    rows_for_last_length[ags_variables_names] = means.where(
+                        counts >= length, np.nan
+                    )
+                case "Max":
+                    # calculate max for the last $length periods for each aid
+                    maxs = grouped.transform("max")
+                    rows_for_last_length[agr_variables_names] = maxs
+                    rows_for_last_length[ags_variables_names] = maxs.where(
+                        grouped.transform("count") >= length, np.nan
+                    )
+                case "Min":
+                    # calculate min for the last $length periods for each aid
+                    mins = grouped.transform("min")
+                    rows_for_last_length[agr_variables_names] = mins
+                    rows_for_last_length[ags_variables_names] = mins.where(
+                        grouped.transform("count") >= length, np.nan
+                    )
+                case _:
+                    pass
+        data_output = pd.merge(
+            data_output,
+            rows_for_last_length[
+                ["aid", *all_agr_variables_names, *all_ags_variables_names]
+            ].drop_duplicates(subset=["aid"]),
+            on="aid",
+            how="left",
+        )
 
-            for variable in aggregated_variables:
-                for statistic in statistics:
-                    match statistic:
-                        case "Mean":
-                            agg_value = last_length_rows[variable].mean(skipna=True)
-                        case "Max":
-                            agg_value = last_length_rows[variable].max(skipna=True)
-                        case "Min":
-                            agg_value = last_length_rows[variable].min(skipna=True)
-                        case _:
-                            agg_value = np.nan
+    # row_outputs: List[dict] = []
 
-                    nmiss = sum(pd.isna(last_length_rows[variable]))
-                    if nmiss != 0 or len(last_length_rows) != length:
-                        row_output[f"agr{length}_{statistic}_{variable}"] = np.nan
-                    else:
-                        row_output[f"agr{length}_{statistic}_{variable}"] = agg_value
-                    row_output[f"ags{length}_{statistic}_{variable}"] = agg_value
-        row_outputs.append(row_output)
-        # Append row output to the DataFrame
-    data_output: pd.DataFrame = pd.DataFrame(row_outputs)
+    cumulative_abt_base["act_n_arrears"] = (
+        cumulative_abt_base[cumulative_abt_base["Due"] > 0]
+        .groupby(["aid"])["Due"]
+        .transform("count")
+    )
+    cumulative_abt_base["act_n_arrears"] = cumulative_abt_base["act_n_arrears"].fillna(
+        0
+    )
+    cumulative_abt_base["act_n_arrears_days"] = (
+        cumulative_abt_base[cumulative_abt_base["Days"] > 15]
+        .groupby(["aid"])["Days"]
+        .transform("count")
+    )
+    cumulative_abt_base["act_n_arrears_days"] = cumulative_abt_base[
+        "act_n_arrears_days"
+    ].fillna(0)
+    cumulative_abt_base["act_n_good_days"] = (
+        cumulative_abt_base[
+            (cumulative_abt_base["Days"] > 0) & (cumulative_abt_base["Days"] < 15)
+        ]
+        .groupby(["aid"])["Days"]
+        .transform("count")
+    )
+    cumulative_abt_base["act_n_good_days"] = cumulative_abt_base[
+        "act_n_good_days"
+    ].fillna(0)
+    cumulative_abt_base["act_n_cus_arrears"] = (
+        cumulative_abt_base[cumulative_abt_base["CMax_Due"] > 0]
+        .groupby(["aid"])["CMax_Due"]
+        .transform("count")
+    )
+    cumulative_abt_base["act_n_cus_arrears"] = cumulative_abt_base[
+        "act_n_cus_arrears"
+    ].fillna(0)
+
+    # Process each row in the input data
+    # for _, row in abt_base_current_period.iterrows():
+    #     # appropriate rows are ordered by period in ascending order
+    #     abt_aid_rows: pd.DataFrame = cumulative_abt_base[
+    #         cumulative_abt_base["aid"] == row["aid"]
+    #     ]
+    #     row_output = row.to_dict()
+    #     row_output["act_n_arrears"] = abt_aid_rows[abt_aid_rows["Due"] > 0].shape[0]
+    #     row_output["act_n_arrears_days"] = abt_aid_rows[
+    #         abt_aid_rows["Days"] > 15
+    #     ].shape[0]
+    #     row_output["act_n_good_days"] = abt_aid_rows[
+    #         (abt_aid_rows["Days"] > 0) & (abt_aid_rows["Days"] < 15)
+    #     ].shape[0]
+    #     row_output["act_n_cus_arrears"] = abt_aid_rows[
+    #         abt_aid_rows["CMax_Due"] > 0
+    #     ].shape[0]
+
+    #     for length in lengths:
+    #         # get last $length frows from abt_aid_rows
+    #         last_length_rows = abt_aid_rows[
+    #             abt_aid_rows["period"] >= get_relative_period(period, -length + 1)
+    #         ]
+
+    #         for variable in aggregated_variables:
+    #             for statistic in statistics:
+    #                 match statistic:
+    #                     case "Mean":
+    #                         agg_value = last_length_rows[variable].mean(skipna=True)
+    #                     case "Max":
+    #                         agg_value = last_length_rows[variable].max(skipna=True)
+    #                     case "Min":
+    #                         agg_value = last_length_rows[variable].min(skipna=True)
+    #                     case _:
+    #                         agg_value = np.nan
+
+    #                 nmiss = sum(pd.isna(last_length_rows[variable]))
+    #                 if nmiss != 0 or len(last_length_rows) != length:
+    #                     row_output[f"agr{length}_{statistic}_{variable}"] = np.nan
+    #                 else:
+    #                     row_output[f"agr{length}_{statistic}_{variable}"] = agg_value
+    #                 row_output[f"ags{length}_{statistic}_{variable}"] = agg_value
+    #     row_outputs.append(row_output)
+    #     # Append row output to the DataFrame
+    # data_output: pd.DataFrame = pd.DataFrame(row_outputs)
 
     # normalize all columns
     normalized_data_output = data_output.copy()

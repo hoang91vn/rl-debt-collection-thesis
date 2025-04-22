@@ -330,8 +330,6 @@ def simulate_actions_and_responses(
                 data_mat[act_due_group_value, 0:i].sum()
                 * counts_array[act_due_group_value]
             )
-            # print(f"positive_reaction_sums[{i}] = {positive_reaction_sums[i]}")
-            # print(f"negative_reaction_sums[{i}] = {negative_reaction_sums[i]}")
         for _, summary_row in act_due_group.iterrows():
             ob += 1
             if summary_row["aid"] in last_actions:
