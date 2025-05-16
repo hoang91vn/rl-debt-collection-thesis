@@ -1,17 +1,19 @@
 import pytest
 import datetime
 import os
-from typing import Final
+from typing import Dict, Final, List
 from abt import (
     run,
     generate_new_clients_accounts_transactions,
     make_production_df,
-    simulate_actions_and_responses,
+    simulate_transactions,
     load_table,
     simulate_next_year_for_clients,
     make_abt_base,
     make_summary_abt,
+    get_new_collection_actions_df,
 )
+from dictionaries import Status
 from tables_types import (
     ClientsRow,
     AccountsRow,
@@ -90,7 +92,7 @@ def test_make_summary_abt(benchmark):
     assert len(summary_abt_df) == len(last_abt_df)
 
 
-def test_simulate_actions_and_responses(benchmark):
+def test_simulate_transactions(benchmark):
     collection_actions_df: pd.DataFrame = load_table(
         os.path.join(TEST_DATA_PATH, "tables"),
         "collection_actions",
@@ -100,15 +102,20 @@ def test_simulate_actions_and_responses(benchmark):
     summary_abt_df: pd.DataFrame = load_table(
         os.path.join(TEST_DATA_PATH, "tables"), "summary_abt_202604", None, False
     )
-    new_transactions_df, new_collection_actions_df = benchmark(
-        simulate_actions_and_responses,
+    last_actions: Dict[str, str] = (
+        collection_actions_df[collection_actions_df["period"] == 202604]
+        .set_index("aid")["action"]
+        .to_dict()
+    )
+    reactions: Dict[str, bool] = {aid: True for aid in last_actions.keys()}
+    new_transactions_df = benchmark(
+        simulate_transactions,
         np.random.default_rng(),
         summary_abt_df,
-        collection_actions_df,
+        reactions,
         202604,
     )
     assert len(new_transactions_df) == len(summary_abt_df)
-    assert len(new_collection_actions_df) != 0
 
 
 def test_generate_new_clients_accounts_transactions(benchmark):
@@ -134,3 +141,43 @@ def test_simulate_next_year_for_clients(benchmark):
         clients_df,
     )
     assert len(new_clients_df) == len(clients_df)
+
+
+def test_get_new_collection_actions_df(benchmark):
+    collection_actions_df: pd.DataFrame = load_table(
+        os.path.join(TEST_DATA_PATH, "tables"),
+        "collection_actions",
+        CollectionActionsRow,
+        False,
+    )
+    summary_abt_df: pd.DataFrame = load_table(
+        os.path.join(TEST_DATA_PATH, "tables"), "summary_abt_202604", None, False
+    )
+    last_actions: Dict[str, str] = (
+        collection_actions_df[collection_actions_df["period"] == 202604]
+        .set_index("aid")["action"]
+        .to_dict()
+    )
+    reactions: Dict[str, bool] = {aid: True for aid in last_actions.keys()}
+    new_transactions_df = simulate_transactions(
+        np.random.default_rng(),
+        summary_abt_df,
+        reactions,
+        202604,
+    )
+    filtered_transactions_df = new_transactions_df[
+        new_transactions_df["status"] == Status.A
+    ]
+    collection_actions_df: pd.DataFrame = load_table(
+        os.path.join(TEST_DATA_PATH, "tables"),
+        "collection_actions",
+        CollectionActionsRow,
+        False,
+    )
+    actions: Dict[str, str] = {
+        aid: "1" for aid in filtered_transactions_df["aid"].to_list()
+    }
+    new_collection_actions_df: pd.DataFrame = benchmark(
+        get_new_collection_actions_df, filtered_transactions_df, actions
+    )
+    assert len(new_collection_actions_df) == len(filtered_transactions_df)

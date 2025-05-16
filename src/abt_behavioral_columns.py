@@ -216,7 +216,7 @@ def make_summary_abt(period: int, data_path: str) -> pd.DataFrame:
     lengths: List[int] = [3, 6, 9, 12]
 
     data_output: pd.DataFrame = abt_base_current_period
-    print(data_output.shape)
+    # print(data_output.shape)
 
     for length in sorted(lengths, reverse=True):
         rows_for_last_length = cumulative_abt_base.loc[

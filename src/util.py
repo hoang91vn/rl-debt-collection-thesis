@@ -245,3 +245,42 @@ def load_histories(directory: str, name: str) -> Dict[str, AccountHistory]:
     """
     with open(f"{directory}/{name}.pkl", "rb") as f:
         return pickle.load(f)
+
+
+def load_table(
+    data_path: str,
+    table_name: str,
+    row_type: type | None,
+    create_if_not_exist: bool = True,
+    index_col: str | List[str] | None = None,
+) -> pd.DataFrame:
+    table_path: str = os.path.join(data_path, f"{table_name}.csv")
+    try:
+        table_df = pd.read_csv(
+            table_path,
+            dtype=get_type(row_type) if row_type else None,
+            index_col=index_col,
+        )
+    except FileNotFoundError:
+        if not create_if_not_exist:
+            raise FileNotFoundError(f"Table {table_name} not found in {data_path}.")
+        table_df = pd.DataFrame(columns=list(row_type.__annotations__.keys()))
+    return table_df
+
+
+def save_table(
+    data_path: str,
+    table_name: str,
+    table_df: pd.DataFrame,
+) -> None:
+    table_path: str = os.path.join(data_path, f"{table_name}.csv")
+    table_df.to_csv(table_path, index=False)
+
+
+def get_period_range(start_period: int, end_period: int) -> List[int]:
+    period_range: List[int] = []
+    current_period: int = start_period
+    while current_period <= end_period:
+        period_range.append(current_period)
+        current_period = get_relative_period(current_period, 1)
+    return period_range
