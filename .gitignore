@@ -4,10 +4,11 @@
 *.log
 *.html
 *.exe
-*.csv
 *.xlsx
 *.xls
 *.lst
 *.pkl
 *.pyc
-venv
+.venv
+src/playground
+tests/test_data/simulate
