@@ -12,13 +12,16 @@ from util import get_relative_period, get_type
 def make_production_df(
     clients_df: pd.DataFrame, accounts_df: pd.DataFrame
 ) -> pd.DataFrame:
-    # production_df is clients_df and accounts_df joined on cid
+    # production_df is clients_df and accounts_df joined on cid)
+    accounts_df["aid"] = accounts_df.index.get_level_values(0)
     production_df = pd.merge(
         clients_df,
         accounts_df,
-        on="cid",
+        left_on="cid",
+        right_on="cid",
         how="inner",
     )
+    production_df.set_index("aid", inplace=True)
     return production_df
 
 
@@ -26,23 +29,24 @@ def make_abt_base(
     production_df: pd.DataFrame, transactions_df: pd.DataFrame, period: int
 ) -> pd.DataFrame:
     period_datetime: datetime = datetime.strptime(str(period), "%Y%m")
-    active_aids = transactions_df.loc[
-        (transactions_df["status"] == Status.A) & (transactions_df["period"] == period),
-        "aid",
-    ]
+    active_aids = (
+        transactions_df.loc[(period,), ["status"]]
+        .loc[lambda df: df["status"] == Status.A]
+        .index.to_list()
+    )
     # Filter transactions for active accounts in the given period and earlier
-    filtered_transactions = transactions_df[
-        (transactions_df["aid"].isin(active_aids))
-        & (transactions_df["period"] <= period)
+    filtered_transactions = transactions_df.loc[:period].loc[
+        lambda df: df.index.get_level_values("aid").isin(active_aids)
     ]
-
     # Merge filtered transactions with production data on 'aid'
     abt_base_tmp = pd.merge(
-        filtered_transactions,
-        production_df.drop(columns=["cid", "app_date", "period"]),
-        on="aid",
+        filtered_transactions.reset_index(),
+        production_df.reset_index().drop(columns=["cid", "app_date", "period"]),
+        left_on="aid",
+        right_on="aid",
         how="left",
     )
+    abt_base_tmp.set_index("aid", inplace=True)
 
     # Fill missing values for unmatched rows
     abt_base_tmp.fillna({"_iorc_": 0}, inplace=True)
@@ -81,7 +85,7 @@ def make_abt_base(
 
     grouped_by_cid = abt_base_tmp.groupby(["cid"])
 
-    abt_base_tmp["act_cus_n_loans_hist"] = grouped_by_cid["aid"].transform("count")
+    abt_base_tmp["act_cus_n_loans_hist"] = grouped_by_cid["status"].transform("count")
 
     abt_base_tmp["act_cus_n_statB"] = grouped_by_cid["status"].transform(
         lambda x: (x == Status.B).sum()
@@ -89,7 +93,7 @@ def make_abt_base(
     abt_base_tmp["act_cus_n_statC"] = grouped_by_cid["status"].transform(
         lambda x: (x == Status.C).sum()
     )
-    abt_base_tmp["act_cus_n_loans_act"] = grouped_by_cid["aid"].transform("count")
+    abt_base_tmp["act_cus_n_loans_act"] = grouped_by_cid["status"].transform("count")
     abt_base_tmp["act_cus_sum_installment"] = grouped_by_cid["installment"].transform(
         "sum"
     )
@@ -126,7 +130,6 @@ def make_abt_base(
 
     relevant_columns: List[str] = [
         "cid",
-        "aid",
         "act_days",
         "act_paid_installments",
         "act_utl",
@@ -313,52 +316,6 @@ def make_summary_abt(period: int, data_path: str) -> pd.DataFrame:
         "act_n_cus_arrears"
     ].fillna(0)
 
-    # Process each row in the input data
-    # for _, row in abt_base_current_period.iterrows():
-    #     # appropriate rows are ordered by period in ascending order
-    #     abt_aid_rows: pd.DataFrame = cumulative_abt_base[
-    #         cumulative_abt_base["aid"] == row["aid"]
-    #     ]
-    #     row_output = row.to_dict()
-    #     row_output["act_n_arrears"] = abt_aid_rows[abt_aid_rows["Due"] > 0].shape[0]
-    #     row_output["act_n_arrears_days"] = abt_aid_rows[
-    #         abt_aid_rows["Days"] > 15
-    #     ].shape[0]
-    #     row_output["act_n_good_days"] = abt_aid_rows[
-    #         (abt_aid_rows["Days"] > 0) & (abt_aid_rows["Days"] < 15)
-    #     ].shape[0]
-    #     row_output["act_n_cus_arrears"] = abt_aid_rows[
-    #         abt_aid_rows["CMax_Due"] > 0
-    #     ].shape[0]
-
-    #     for length in lengths:
-    #         # get last $length frows from abt_aid_rows
-    #         last_length_rows = abt_aid_rows[
-    #             abt_aid_rows["period"] >= get_relative_period(period, -length + 1)
-    #         ]
-
-    #         for variable in aggregated_variables:
-    #             for statistic in statistics:
-    #                 match statistic:
-    #                     case "Mean":
-    #                         agg_value = last_length_rows[variable].mean(skipna=True)
-    #                     case "Max":
-    #                         agg_value = last_length_rows[variable].max(skipna=True)
-    #                     case "Min":
-    #                         agg_value = last_length_rows[variable].min(skipna=True)
-    #                     case _:
-    #                         agg_value = np.nan
-
-    #                 nmiss = sum(pd.isna(last_length_rows[variable]))
-    #                 if nmiss != 0 or len(last_length_rows) != length:
-    #                     row_output[f"agr{length}_{statistic}_{variable}"] = np.nan
-    #                 else:
-    #                     row_output[f"agr{length}_{statistic}_{variable}"] = agg_value
-    #                 row_output[f"ags{length}_{statistic}_{variable}"] = agg_value
-    #     row_outputs.append(row_output)
-    #     # Append row output to the DataFrame
-    # data_output: pd.DataFrame = pd.DataFrame(row_outputs)
-
     # normalize all columns
     normalized_data_output = data_output.copy()
     for column in data_output.columns:
@@ -378,15 +335,6 @@ def make_summary_abt(period: int, data_path: str) -> pd.DataFrame:
                 ) / data_output[column].std()
             # fill missing values with 0
             normalized_data_output[column] = normalized_data_output[column].fillna(0)
-    # save normalized data
-    # normalized_data_output.to_csv(
-    #     os.path.join(
-    #         data_path,
-    #         f"abt_base_{period}_normalized.csv",
-    #     ),
-    #     index=False,
-    # )
-
     # Calculate scorem
     data_output["scorem"] = (
         1 * normalized_data_output["app_income"]

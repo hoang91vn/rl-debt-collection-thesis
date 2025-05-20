@@ -30,10 +30,17 @@ from abt_behavioral_columns import (
     make_summary_abt,
 )
 from util import (
+    create_table,
     get_month_period_difference,
     get_relative_period,
     get_type,
-    load_table,
+    load_clients_table,
+    load_abt_base_table,
+    load_abt_summary_table,
+    load_accounts_table,
+    load_transactions_table,
+    load_collection_actions_table,
+    load_or_create_table,
     save_table,
 )
 import os
@@ -155,7 +162,7 @@ def run(
     new_accounts_count: int,
     generator: np.random.Generator,
     choose_actions_func: Callable[[str, List[str]], Dict[str, str]],
-    simulate_reactions: Callable[[str, Dict[str, str], int], Dict[str, bool]],
+    simulate_reactions_func: Callable[[str, Dict[str, str], int], Dict[str, bool]],
     start_date: int = 0,
     overwrite: bool = False,
 ) -> None:
@@ -187,7 +194,7 @@ def run(
         new_accounts_count,
         generator,
         choose_actions_func,
-        simulate_reactions,
+        simulate_reactions_func,
     )
 
 
@@ -259,14 +266,16 @@ def generate_new_clients_accounts_transactions(
             client.cid, aid, get_period(current_date)
         )
         new_transactions.append(new_transaction)
-    new_clients_df: pd.DataFrame = pd.DataFrame(
-        [client.to_dict() for client in new_clients]
+    new_clients_df: pd.DataFrame = create_table(
+        ClientsRow, "cid", [client.to_dict() for client in new_clients]
     )
-    new_accounts_df: pd.DataFrame = pd.DataFrame(
-        [account.to_dict() for account in new_accounts]
+    new_accounts_df: pd.DataFrame = create_table(
+        AccountsRow, "aid", [account.to_dict() for account in new_accounts]
     )
-    new_transactions_df: pd.DataFrame = pd.DataFrame(
-        [transaction for transaction in new_transactions]
+    new_transactions_df: pd.DataFrame = create_table(
+        TransactionsRow,
+        ["period", "aid"],
+        [transaction for transaction in new_transactions],
     )
     return new_clients_df, new_accounts_df, new_transactions_df
 
@@ -275,7 +284,7 @@ def get_next_cid(clients_df: pd.DataFrame) -> int:
     if clients_df.empty:
         return 1
     else:
-        return int(clients_df["cid"].max()) + 1
+        return int(clients_df.index.get_level_values("cid").astype(int).max()) + 1
 
 
 def simulate_reactions(
@@ -292,6 +301,7 @@ def simulate_reactions(
     return reactions
 
 
+# 57us
 def simulate_transactions(
     generator: np.random.Generator,
     summary_abt_df: pd.DataFrame,
@@ -301,6 +311,7 @@ def simulate_transactions(
     next_period: int = get_next_period(current_period)
     new_transactions: List[TransactionsRow] = []
     counts_array: np.ndarray = np.zeros(13, dtype=int)
+    print(summary_abt_df)
     stat: pd.DataFrame = (
         summary_abt_df[["act_due", "score"]].groupby("act_due").agg({"score": "count"})
     )
@@ -325,30 +336,30 @@ def simulate_transactions(
                 data_mat[act_due_group_value, 0:i].sum()
                 * counts_array[act_due_group_value]
             )
-        for _, summary_row in act_due_group.iterrows():
+        for summary_row in act_due_group.itertuples():
             ob += 1
             reaction: bool = (
-                reactions[summary_row["aid"]]
-                if summary_row["period"] != summary_row["fin_period"]
+                reactions[getattr(summary_row, "aid")]
+                if getattr(summary_row, "period") != getattr(summary_row, "fin_period")
                 else True
             )
             appropriate_sums = (
                 positive_reaction_sums if reaction else negative_reaction_sums
             )
-            act_due: int = summary_row["act_due"]
-            act_paid: int = summary_row["act_paid_installments"]
+            act_due: int = getattr(summary_row, "act_due")
+            act_paid: int = getattr(summary_row, "act_paid_installments")
 
             new_due_installments: int = act_due
             new_paid_installments: int = act_paid
             total_due_for_next_period: int = np.min(
                 [
                     get_month_period_difference(
-                        int(summary_row["fin_period"]), next_period
+                        int(getattr(summary_row, "fin_period")), next_period
                     ),
-                    summary_row["app_n_installments"],
+                    getattr(summary_row, "app_n_installments"),
                 ]
             )
-            new_status: Status = summary_row["status"]
+            new_status: Status = getattr(summary_row, "status")
             pay_days: int = 0
             if 0 <= act_due < 12:
                 i = next(
@@ -373,25 +384,25 @@ def simulate_transactions(
                     pay_days = 0
                 else:
                     # Payment
-                    if summary_row["act_due"] < 2:
+                    if getattr(summary_row, "act_due") < 2:
                         pay_days = -int(15 * abs(generator.normal(0, 1)) / 4)
                     else:
                         pay_days = int(15 * generator.normal(0, 1) / 4)
-            if new_paid_installments == summary_row["app_n_installments"]:
+            if new_paid_installments == getattr(summary_row, "app_n_installments"):
                 new_due_installments = 0
                 new_status = Status.C
             elif new_due_installments == 12:
                 new_status = Status.B
 
             new_coll_status = get_new_coll_status(
-                new_due_installments, summary_row["coll_status"]
+                new_due_installments, getattr(summary_row, "coll_status")
             )
 
             new_transaction: TransactionsRow = TransactionsRow(
-                aid=summary_row["aid"],
-                cid=summary_row["cid"],
+                aid=getattr(summary_row, "aid"),
+                cid=getattr(summary_row, "cid"),
                 period=get_next_period(current_period),
-                fin_period=summary_row["fin_period"],
+                fin_period=getattr(summary_row, "fin_period"),
                 status=new_status,
                 coll_status=new_coll_status,
                 due_installments=new_due_installments,
@@ -400,9 +411,14 @@ def simulate_transactions(
             )
             new_transactions.append(new_transaction)
 
-    new_transactions_df: pd.DataFrame = pd.DataFrame(
-        [transaction for transaction in new_transactions]
+    new_transactions_df: pd.DataFrame = create_table(
+        TransactionsRow, ["period", "aid"], new_transactions
     )
+
+    # new_transactions_df: pd.DataFrame = pd.DataFrame(
+    #     [transaction for transaction in new_transactions],
+    # )
+    # new_transactions_df.set_index(["period", "aid"], inplace=True)
 
     return new_transactions_df
 
@@ -413,10 +429,10 @@ def simulate_next_year_for_clients(
     clients = Client.get_list_from_dataframe(clients_df)
     for client in clients:
         client.simulate_next_year(generator=np.random.default_rng())
-    clients_df = pd.DataFrame(
-        [client.to_dict() for client in clients], columns=clients_df.columns
+    new_clients_df: pd.DataFrame = create_table(
+        ClientsRow, "cid", [client.to_dict() for client in clients]
     )
-    return clients_df
+    return new_clients_df
 
 
 def get_new_collection_actions_df(
@@ -424,19 +440,22 @@ def get_new_collection_actions_df(
     actions: Dict[str, str],
 ) -> pd.DataFrame:
     new_collection_actions: List[CollectionActionsRow] = []
-    for _, transaction_row in new_transactions_df.iterrows():
-        if transaction_row["status"] == Status.A:
-            action: str = actions[transaction_row["aid"]]
+    for transaction_row in new_transactions_df.itertuples():
+        if getattr(transaction_row, "status") == Status.A:
+            aid: str = getattr(transaction_row, "Index")[1]
+            period: int = int(getattr(transaction_row, "Index")[0])
+            action: str = actions[aid]
             collection_action: CollectionActionsRow = CollectionActionsRow(
                 action=action,
-                cid=transaction_row["cid"],
-                aid=transaction_row["aid"],
-                period=transaction_row["period"],
-                coll_status=transaction_row["coll_status"],
+                cid=getattr(transaction_row, "cid"),
+                aid=aid,
+                period=period,
+                coll_status=getattr(transaction_row, "coll_status"),
             )
             new_collection_actions.append(collection_action)
-    new_collection_actions_df: pd.DataFrame = pd.DataFrame(
-        [action for action in new_collection_actions]
+
+    new_collection_actions_df: pd.DataFrame = create_table(
+        CollectionActionsRow, ["period", "aid"], new_collection_actions
     )
     return new_collection_actions_df
 
@@ -449,17 +468,13 @@ def simulate(
     new_accounts_count: int,
     generator: np.random.Generator,
     choose_actions_func: Callable[[str, List[str]], Dict[str, str]],
-    simulate_reactions: Callable[[str, Dict[str, str], int], Dict[str, bool]],
+    simulate_reactions_func: Callable[[str, Dict[str, str], int], Dict[str, bool]],
 ) -> None:
     # load tables
-    clients_df: pd.DataFrame = load_table(data_path, "clients", ClientsRow)
-    accounts_df: pd.DataFrame = load_table(data_path, "accounts", AccountsRow)
-    transactions_df: pd.DataFrame = load_table(
-        data_path, "transactions", TransactionsRow
-    )
-    collection_actions_df: pd.DataFrame = load_table(
-        data_path, "collection_actions", CollectionActionsRow
-    )
+    clients_df: pd.DataFrame = load_clients_table(data_path, True)
+    accounts_df: pd.DataFrame = load_accounts_table(data_path, True)
+    transactions_df: pd.DataFrame = load_transactions_table(data_path, True)
+    collection_actions_df: pd.DataFrame = load_collection_actions_table(data_path, True)
     start_date_datetime: datetime.datetime = get_date_datetime(start_date)
     end_date_datetime: datetime.datetime = get_date_datetime(end_date)
     current_date: datetime.datetime = start_date_datetime
@@ -474,13 +489,13 @@ def simulate(
             )
         )
         clients_df = pd.concat(
-            [clients_df, new_clients_df], ignore_index=True, copy=False
+            [clients_df, new_clients_df], ignore_index=False, copy=False
         )
         accounts_df = pd.concat(
-            [accounts_df, new_accounts_df], ignore_index=True, copy=False
+            [accounts_df, new_accounts_df], ignore_index=False, copy=False
         )
         transactions_df = pd.concat(
-            [transactions_df, new_transactions_df], ignore_index=True, copy=False
+            [transactions_df, new_transactions_df], ignore_index=False, copy=False
         )
         if is_last_day_of_month(current_date):
             print(f"closing period {current_period}")
@@ -499,15 +514,16 @@ def simulate(
                 f"summary_abt_{current_period}",
                 summary_abt_df,
             )
-            last_actions: Dict[str, str] = (
-                collection_actions_df.loc[
-                    collection_actions_df["period"] == current_period
-                ]
-                .groupby(["aid"])["action"]
-                .last()
-                .to_dict()
-            )
-            reactions: Dict[str, bool] = simulate_reactions(
+            try:
+                last_actions: Dict[str, str] = (
+                    collection_actions_df.loc[(current_period,), :]
+                    .groupby(["aid"])["action"]
+                    .last()
+                    .to_dict()
+                )
+            except KeyError:
+                last_actions: Dict[str, str] = {}
+            reactions: Dict[str, bool] = simulate_reactions_func(
                 data_path, last_actions, current_period
             )
             new_transactions_df = simulate_transactions(
@@ -519,11 +535,13 @@ def simulate(
             new_transactions_for_active_accounts_df: pd.DataFrame = (
                 new_transactions_df.loc[new_transactions_df["status"] == Status.A]
             )
-            aids_to_decide: List[str] = new_transactions_for_active_accounts_df[
-                "aid"
-            ].tolist()
+            aids_to_decide: List[str] = (
+                new_transactions_for_active_accounts_df.index.get_level_values(
+                    "aid"
+                ).tolist()
+            )
             transactions_df = pd.concat(
-                [transactions_df, new_transactions_df], ignore_index=True, copy=False
+                [transactions_df, new_transactions_df], ignore_index=False, copy=False
             )
             actions: Dict[str, str] = choose_actions_func(data_path, aids_to_decide)
             new_collection_actions_df = get_new_collection_actions_df(
@@ -531,7 +549,7 @@ def simulate(
             )
             collection_actions_df = pd.concat(
                 [collection_actions_df, new_collection_actions_df],
-                ignore_index=True,
+                ignore_index=False,
                 copy=False,
             )
         if is_last_day_of_year(current_date):

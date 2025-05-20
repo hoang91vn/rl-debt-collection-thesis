@@ -46,20 +46,25 @@ def get_action_cost(action: str) -> int:
 
 
 if __name__ == "__main__":
-    # generator = np.random.default_rng(42)
-    # run(
-    #     RUN_DATA_PATH,
-    #     20260501,
-    #     2,
-    #     2,
-    #     generator,
-    #     choose_actions,
-    #     simulate_reactions,
-    #     start_date=20240501,
-    #     overwrite=True,
+    generator = np.random.default_rng(42)
+    run(
+        RUN_DATA_PATH,
+        20260501,
+        2,
+        2,
+        generator,
+        choose_actions,
+        simulate_reactions,
+        start_date=20240501,
+        overwrite=True,
+    )
+    revenue: int = calculate_revenue(RUN_DATA_PATH, None, None)
+    cost: int = calculate_cost(RUN_DATA_PATH, None, None, get_action_cost)
+    print(f"revenue: {revenue}, cost: {cost}, profit: {revenue - cost}")
+    # history = get_all_accounts_histories(RUN_DATA_PATH)
+    # terminated_histories_count = len(
+    #     [(key, history) for (key, history) in history.items() if history["terminated"]]
     # )
-    # revenue: int = calculate_revenue(RUN_DATA_PATH, None, None)
-    # cost: int = calculate_cost(RUN_DATA_PATH, None, None, get_action_cost)
-    # print(f"revenue: {revenue}, cost: {cost}, profit: {revenue - cost}")
-    history = get_all_accounts_histories(RUN_DATA_PATH)
+    # active_histories_count = len(history.items()) - terminated_histories_count
+    # print(f"active: {active_histories_count}, terminated: {terminated_histories_count}")
     # print(history)

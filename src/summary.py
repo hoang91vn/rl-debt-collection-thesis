@@ -3,24 +3,29 @@ import pandas as pd
 import numpy as np
 import os
 from tables_types import AccountsRow, CollectionActionsRow
-from util import get_relative_period, load_table, save_table, get_period_range
+from util import (
+    get_relative_period,
+    load_accounts_table,
+    load_or_create_table,
+    load_transactions_table,
+    save_table,
+    get_period_range,
+)
 
 
 def calculate_revenue(
     data_path: str, start_period: int | None, end_period: int | None
 ) -> int:
-    transactions_df = load_table(
-        data_path,
-        "transactions",
-        CollectionActionsRow,
-        False,
-        index_col=["period", "aid"],
-    )
-    accounts_df = load_table(data_path, "accounts", AccountsRow, False, index_col="aid")
+    transactions_df = load_transactions_table(data_path, False)
+    accounts_df = load_accounts_table(data_path, False)
     if start_period is None:
-        start_period = int(transactions_df.index.get_level_values("period").min())
+        start_period = int(
+            transactions_df.index.get_level_values("period").astype(int).min()
+        )
     if end_period is None:
-        end_period = int(transactions_df.index.get_level_values("period").max())
+        end_period = int(
+            transactions_df.index.get_level_values("period").astype(int).max()
+        )
     total_revenue: int = 0
     for row in transactions_df.loc[(start_period,) : (end_period,)].itertuples(True):
         current_period_paid_installments: int = getattr(row, "paid_installments")
@@ -50,11 +55,11 @@ def calculate_cost(
     end_period: int | None,
     get_action_cost: Callable[[str], int],
 ) -> int:
-    collection_actions_df = load_table(
+    collection_actions_df = load_or_create_table(
         data_path, "collection_actions", CollectionActionsRow, False
     )
     if start_period is None or end_period is None:
-        transactions_df: pd.DataFrame = load_table(
+        transactions_df: pd.DataFrame = load_or_create_table(
             data_path, "transactions", CollectionActionsRow, False
         )
         if start_period is None:

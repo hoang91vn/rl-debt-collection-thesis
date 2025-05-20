@@ -7,7 +7,7 @@ from abt import (
     generate_new_clients_accounts_transactions,
     make_production_df,
     simulate_transactions,
-    load_table,
+    load_or_create_table,
     simulate_next_year_for_clients,
     make_abt_base,
     make_summary_abt,
@@ -20,19 +20,39 @@ from tables_types import (
     TransactionsRow,
     CollectionActionsRow,
 )
+from util import load_clients_table, load_accounts_table, load_transactions_table
 import numpy as np
 import pandas as pd
 
 TEST_DATA_PATH: Final[str] = os.path.join(os.path.dirname(__file__), "test_data")
 
 
-@pytest.mark.skip(
-    reason="This test is skipped because it is not relevant to the current context."
-)
+# @pytest.mark.skip(
+#     reason="This test is skipped because it is not relevant to the current context."
+# )
+# old: 6.113 s
 def test_run(benchmark):
     data_path: str = os.path.join(
         os.path.dirname(__file__), "test_data", "simulate", "data"
     )
+
+    def choose_actions(data_path: str, aids: List[str]) -> Dict[str, str]:
+        actions: Dict[str, str] = {}
+        for aid in aids:
+            actions[aid] = "2"
+        return actions
+
+    def simulate_reactions(
+        data_path: str, actions: Dict[str, str], period: int
+    ) -> Dict[str, bool]:
+        reactions: Dict[str, bool] = {}
+        for aid, action in actions.items():
+            if action == "1":
+                reactions[aid] = True
+            else:
+                reactions[aid] = False
+        return reactions
+
     generator: np.random.Generator = np.random.default_rng(42)
     benchmark.pedantic(
         run,
@@ -42,6 +62,8 @@ def test_run(benchmark):
             "start_date": 20000101,
             "end_date": 20020101,
             "new_clients_count": 1,
+            "choose_actions_func": choose_actions,
+            "simulate_reactions_func": simulate_reactions,
             "new_accounts_count": 1,
             "generator": generator,
             "overwrite": True,
@@ -51,10 +73,10 @@ def test_run(benchmark):
 
 
 def test_make_production_df(benchmark):
-    clients_df: pd.DataFrame = load_table(
+    clients_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"), "clients", ClientsRow, False
     )
-    accounts_df: pd.DataFrame = load_table(
+    accounts_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"), "accounts", AccountsRow, False
     )
     production_df = benchmark(make_production_df, clients_df, accounts_df)
@@ -62,17 +84,19 @@ def test_make_production_df(benchmark):
 
 
 def test_make_abt_base(benchmark):
-    clients_df: pd.DataFrame = load_table(
-        os.path.join(TEST_DATA_PATH, "tables"), "clients", ClientsRow, False
+    clients_df: pd.DataFrame = load_clients_table(
+        os.path.join(TEST_DATA_PATH, "tables"), False
     )
-    accounts_df: pd.DataFrame = load_table(
-        os.path.join(TEST_DATA_PATH, "tables"), "accounts", AccountsRow, False
+    accounts_df: pd.DataFrame = load_accounts_table(
+        os.path.join(TEST_DATA_PATH, "tables"), False
     )
-    transactions_df: pd.DataFrame = load_table(
-        os.path.join(TEST_DATA_PATH, "tables"), "transactions", TransactionsRow, False
+    transactions_df: pd.DataFrame = load_transactions_table(
+        os.path.join(TEST_DATA_PATH, "tables"), False
     )
     production_df: pd.DataFrame = make_production_df(clients_df, accounts_df)
-    last_period: int = transactions_df["period"].max()
+    last_period: int = (
+        transactions_df.index.get_level_values("period").astype(int).max()
+    )
     abt_base_df = benchmark(make_abt_base, production_df, transactions_df, last_period)
     assert len(abt_base_df) > 0
 
@@ -93,13 +117,13 @@ def test_make_summary_abt(benchmark):
 
 
 def test_simulate_transactions(benchmark):
-    collection_actions_df: pd.DataFrame = load_table(
+    collection_actions_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"),
         "collection_actions",
         CollectionActionsRow,
         False,
     )
-    summary_abt_df: pd.DataFrame = load_table(
+    summary_abt_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"), "summary_abt_202604", None, False
     )
     last_actions: Dict[str, str] = (
@@ -133,7 +157,7 @@ def test_generate_new_clients_accounts_transactions(benchmark):
 
 
 def test_simulate_next_year_for_clients(benchmark):
-    clients_df: pd.DataFrame = load_table(
+    clients_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"), "clients", ClientsRow, False
     )
     new_clients_df = benchmark(
@@ -144,13 +168,13 @@ def test_simulate_next_year_for_clients(benchmark):
 
 
 def test_get_new_collection_actions_df(benchmark):
-    collection_actions_df: pd.DataFrame = load_table(
+    collection_actions_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"),
         "collection_actions",
         CollectionActionsRow,
         False,
     )
-    summary_abt_df: pd.DataFrame = load_table(
+    summary_abt_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"), "summary_abt_202604", None, False
     )
     last_actions: Dict[str, str] = (
@@ -168,14 +192,15 @@ def test_get_new_collection_actions_df(benchmark):
     filtered_transactions_df = new_transactions_df[
         new_transactions_df["status"] == Status.A
     ]
-    collection_actions_df: pd.DataFrame = load_table(
+    collection_actions_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"),
         "collection_actions",
         CollectionActionsRow,
         False,
     )
     actions: Dict[str, str] = {
-        aid: "1" for aid in filtered_transactions_df["aid"].to_list()
+        aid: "1"
+        for aid in filtered_transactions_df.index.get_level_values("aid").to_list()
     }
     new_collection_actions_df: pd.DataFrame = benchmark(
         get_new_collection_actions_df, filtered_transactions_df, actions

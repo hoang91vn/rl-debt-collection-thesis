@@ -255,10 +255,9 @@ class Client:
 
     @staticmethod
     def get_list_from_dataframe(df: pd.DataFrame) -> List["Client"]:
-        # print(df.to_dict(orient="records"))
         return [
             Client(ClientsRow(**{str(k): v for k, v in row.items()}))
-            for row in df.to_dict(orient="records")
+            for row in df.reset_index().to_dict(orient="records", index=True)
         ]
 
 

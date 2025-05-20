@@ -10,6 +10,7 @@ from special_types import (
     CidAid,
 )
 from tables_types import AccountsRow, ClientsRow, CollectionActionsRow, TransactionsRow
+from dictionaries import Status, CollStat
 
 
 def get_relative_period(period: int, month_change: int) -> int:
@@ -52,64 +53,104 @@ def get_type(type_to_digest: type) -> Dict[str, Any]:
     return mapping
 
 
-def load_table(
-    data_path: str,
-    table_name: str,
+def create_table(
+    row_type: type | None,
+    index_col: str | List[str] | None = None,
+    initial_data: Dict[str, Any] | List[Any] | None = None,
+) -> pd.DataFrame:
+    table_df = pd.DataFrame(
+        columns=list(row_type.__annotations__.keys()), data=initial_data
+    )
+    if index_col is not None:
+        table_df.set_index(index_col, inplace=True)
+    return table_df
+
+
+def load_or_create_table(
+    data_path: str | None,
+    table_name: str | None,
     row_type: type | None,
     create_if_not_exist: bool = True,
     index_col: str | List[str] | None = None,
 ) -> pd.DataFrame:
-    table_path: str = os.path.join(data_path, f"{table_name}.csv")
-    try:
-        table_df = pd.read_csv(
-            table_path,
-            dtype=get_type(row_type) if row_type else None,
-            index_col=index_col,
-        )
-    except FileNotFoundError:
-        if not create_if_not_exist:
-            raise FileNotFoundError(f"Table {table_name} not found in {data_path}.")
-        table_df = pd.DataFrame(columns=list(row_type.__annotations__.keys()))
+    if data_path is not None and table_name is not None:
+        table_path: str = os.path.join(data_path, f"{table_name}.csv")
+        try:
+            table_df = pd.read_csv(
+                table_path,
+                dtype=get_type(row_type) if row_type else None,
+                index_col=index_col,
+            )
+        except FileNotFoundError:
+            if not create_if_not_exist:
+                raise FileNotFoundError(f"Table {table_name} not found in {data_path}.")
+            table_df = create_table(row_type, index_col)
+    else:
+        table_df = create_table(row_type, index_col)
     return table_df
 
 
 def save_table(
-    data_path: str,
-    table_name: str,
-    table_df: pd.DataFrame,
+    data_path: str, table_name: str, table_df: pd.DataFrame, index: bool = True
 ) -> None:
     table_path: str = os.path.join(data_path, f"{table_name}.csv")
-    table_df.to_csv(table_path, index=False)
+    table_df.to_csv(table_path, index=index)
 
 
-def load_collection_actions_table(data_path: str) -> pd.DataFrame:
-    return load_table(
-        data_path, "collection_actions", CollectionActionsRow, False, ["period", "aid"]
+def load_collection_actions_table(
+    data_path: str, create_if_not_exist: bool = False
+) -> pd.DataFrame:
+    return load_or_create_table(
+        data_path,
+        "collection_actions",
+        CollectionActionsRow,
+        create_if_not_exist,
+        ["period", "aid"],
     )
 
 
-def load_accounts_table(data_path: str) -> pd.DataFrame:
-    return load_table(data_path, "accounts", AccountsRow, False, "aid")
-
-
-def load_clients_table(data_path: str) -> pd.DataFrame:
-    return load_table(data_path, "clients", ClientsRow, False, "cid")
-
-
-def load_transactions_table(data_path: str) -> pd.DataFrame:
-    return load_table(
-        data_path, "transactions", TransactionsRow, False, ["period", "aid"]
+def load_accounts_table(
+    data_path: str, create_if_not_exist: bool = False
+) -> pd.DataFrame:
+    return load_or_create_table(
+        data_path, "accounts", AccountsRow, create_if_not_exist, "aid"
     )
 
 
-def load_abt_summary_table(data_path: str, period: int) -> pd.DataFrame:
-    return load_table(
-        data_path, f"summary_abt_{period}", None, False, ["period", "aid"]
+def load_clients_table(
+    data_path: str, create_if_not_exist: bool = False
+) -> pd.DataFrame:
+    return load_or_create_table(
+        data_path, "clients", ClientsRow, create_if_not_exist, "cid"
     )
 
 
-def load_abt_base_table(data_path: str, period: int) -> pd.DataFrame:
-    return load_table(data_path, f"abt_base_{period}", None, False, ["period", "aid"])
+def load_transactions_table(
+    data_path: str, create_if_not_exist: bool = False
+) -> pd.DataFrame:
+    return load_or_create_table(
+        data_path,
+        "transactions",
+        TransactionsRow,
+        create_if_not_exist,
+        ["period", "aid"],
+    )
+
+
+def load_abt_summary_table(
+    data_path: str, period: int, create_if_not_exist: bool = False
+) -> pd.DataFrame:
+    return load_or_create_table(
+        data_path, f"summary_abt_{period}", None, create_if_not_exist, "aid"
+    )
+
+
+def load_abt_base_table(
+    data_path: str, period: int, create_if_not_exist: bool = False
+) -> pd.DataFrame:
+    return load_or_create_table(
+        data_path, f"abt_base_{period}", None, create_if_not_exist, ["period", "aid"]
+    )
 
 
 def get_period_range(start_period: int, end_period: int) -> List[int]:
@@ -195,7 +236,7 @@ def get_account_period_info(
         observation = None
     else:
         try:
-            account_period_row: pd.Series = cast(pd.Series, abt[aid])
+            account_period_row: pd.Series = cast(pd.Series, abt.loc[aid])
             if included_abt_columns is not None:
                 account_period_row = account_period_row[included_abt_columns]
             account_period_row = account_period_row.drop(
@@ -232,10 +273,9 @@ def get_all_accounts_histories(
     transactions = load_transactions_table(data_path)
     collection_actions = load_collection_actions_table(data_path)
     all_periods: List[int] = (
-        transactions.index.get_level_values(0).unique().astype(int).tolist()
+        transactions.index.get_level_values("period").unique().astype(int).tolist()
     )
     for period in all_periods:
-        print("period:", period)
         all_cidaids = get_all_cidaids(transactions, period)
         try:
             current_abt = load_abt_summary_table(data_path, period)
@@ -260,7 +300,7 @@ def get_all_accounts_histories(
                 included_abt_columns=included_abt_columns,
             )
             assert current_info is not None
-            if current_info["transactions_data"]["status"] != "A":
+            if current_info["transactions_data"]["status"] != Status.A:
                 accounts_histories[aid]["terminated"] = True
             accounts_histories[aid]["history"].append(current_info)
     return accounts_histories

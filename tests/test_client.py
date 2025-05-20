@@ -2,7 +2,7 @@ import os
 from typing import Final
 
 import pandas as pd
-from abt import load_table
+from abt import load_or_create_table
 from clients_code import Client
 import datetime
 import numpy as np
@@ -36,7 +36,7 @@ def test_simulate_next_year(benchmark):
 
 
 def test_get_list_from_dataframe(benchmark):
-    clients_df: pd.DataFrame = load_table(
+    clients_df: pd.DataFrame = load_or_create_table(
         os.path.join(TEST_DATA_PATH, "tables"), "clients", ClientsRow, False
     )
     clients = benchmark(Client.get_list_from_dataframe, clients_df)
