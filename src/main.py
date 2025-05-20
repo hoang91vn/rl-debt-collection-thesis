@@ -4,12 +4,12 @@ import saspy
 from saspy import SASsession
 import pandas as pd
 from special_types import AccountHistory, CidAid
-from util import (
+from old_util import (
     get_account_period_info,
     get_all_cidaids,
-    get_previous_period,
     save_histories,
 )
+from util import get_relative_period
 from decision import decide_for_all
 from typing import Dict, List, TypedDict, cast, Final
 import traceback
@@ -114,7 +114,7 @@ def run_final(
         fiperiod1 = str(sas.symget("fiperiod1"))
 
         current_period: str = fiperiod1
-        previous_period: str = get_previous_period(current_period)
+        previous_period: str = str(get_relative_period(int(current_period), -1))
         next_period: str = fiperiod
         print(f"{current_period} -> {next_period}")
 

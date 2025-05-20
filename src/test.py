@@ -12,6 +12,7 @@ from summary import (
     calculate_revenue,
     calculate_cost,
 )
+from util import get_all_accounts_histories
 
 
 TEST_DATA_PATH: Final[str] = "/home/akmere/Projects/rl-debt-collection/tests/test_data"
@@ -21,19 +22,22 @@ if not os.path.exists(RUN_DATA_PATH):
     os.makedirs(RUN_DATA_PATH)
 
 
-def choose_actions(path: str, aids: List[str]) -> Dict[str, str]:
+def choose_actions(data_path: str, aids: List[str]) -> Dict[str, str]:
     actions: Dict[str, str] = {}
     for aid in aids:
-        actions[aid] = "1"
+        actions[aid] = "2"
     return actions
 
 
 def simulate_reactions(
-    path: str, actions: Dict[str, str], period: int
+    data_path: str, actions: Dict[str, str], period: int
 ) -> Dict[str, bool]:
     reactions: Dict[str, bool] = {}
     for aid, action in actions.items():
-        reactions[aid] = True
+        if action == "1":
+            reactions[aid] = True
+        else:
+            reactions[aid] = False
     return reactions
 
 
@@ -42,7 +46,7 @@ def get_action_cost(action: str) -> int:
 
 
 if __name__ == "__main__":
-    generator = np.random.default_rng(42)
+    # generator = np.random.default_rng(42)
     # run(
     #     RUN_DATA_PATH,
     #     20260501,
@@ -54,9 +58,8 @@ if __name__ == "__main__":
     #     start_date=20240501,
     #     overwrite=True,
     # )
-    print(calculate_period_revenue(SIMULATION_DATA_PATH, 200010))
-    print(calculate_period_cost(SIMULATION_DATA_PATH, 200010, get_action_cost))
-    print(calculate_revenue(SIMULATION_DATA_PATH, 200003, 200107))
-    print(calculate_revenue(SIMULATION_DATA_PATH, None, None))
-    print(calculate_cost(SIMULATION_DATA_PATH, 200003, 200107, get_action_cost))
-    print(calculate_cost(SIMULATION_DATA_PATH, None, None, get_action_cost))
+    # revenue: int = calculate_revenue(RUN_DATA_PATH, None, None)
+    # cost: int = calculate_cost(RUN_DATA_PATH, None, None, get_action_cost)
+    # print(f"revenue: {revenue}, cost: {cost}, profit: {revenue - cost}")
+    history = get_all_accounts_histories(RUN_DATA_PATH)
+    # print(history)

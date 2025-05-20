@@ -1,5 +1,4 @@
-saspy==5.102.1
 pandas==2.2.3
 numpy==2.2.4
-pytest
-pytest-benchmark
+pytest==8.3.5
+pytest-benchmark==5.1.0

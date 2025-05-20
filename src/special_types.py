@@ -18,7 +18,7 @@ AccountPeriodInfo = TypedDict(
     {
         "cid": str,
         "aid": str,
-        "period": str,
+        "period": int,
         "abt_data": pd.Series
         | None,  # None if it is the period at which the account was terminated
         "transactions_data": TransactionsData,

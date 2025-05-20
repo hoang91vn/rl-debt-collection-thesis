@@ -1,16 +1,15 @@
 from enum import Enum
 import pandas as pd
-from typing import Any, Dict, List, Union, Final
+from typing import Any, Dict, List, Union, Final, cast
+import os
+import pickle
 from special_types import (
     TransactionsData,
     AccountPeriodInfo,
     AccountHistory,
     CidAid,
 )
-import os
-import pickle
-
-EXCLUDED_ABT_COLUMNS: Final[List[str]] = ["cid", "aid", "period"]
+from tables_types import AccountsRow, ClientsRow, CollectionActionsRow, TransactionsRow
 
 
 def get_relative_period(period: int, month_change: int) -> int:
@@ -43,20 +42,6 @@ def get_month_period_difference(period1: int, period2: int) -> int:
     return (year2 - year1) * 12 + (month2 - month1)
 
 
-def get_previous_period(period: str) -> str:
-    """
-    Takes period in format yyyymm and returns previous period in format yyyymm.
-    """
-    year = int(period[:4])
-    month = int(period[4:])
-    if month == 1:
-        year -= 1
-        month = 12
-    else:
-        month -= 1
-    return f"{year}{month:02d}"
-
-
 def get_type(type_to_digest: type) -> Dict[str, Any]:
     mapping: Dict[str, Any] = {}
     for key, value in type_to_digest.__annotations__.items():
@@ -67,19 +52,88 @@ def get_type(type_to_digest: type) -> Dict[str, Any]:
     return mapping
 
 
-def get_all_cidaids(transactions: pd.DataFrame, period: str) -> List[CidAid]:
+def load_table(
+    data_path: str,
+    table_name: str,
+    row_type: type | None,
+    create_if_not_exist: bool = True,
+    index_col: str | List[str] | None = None,
+) -> pd.DataFrame:
+    table_path: str = os.path.join(data_path, f"{table_name}.csv")
+    try:
+        table_df = pd.read_csv(
+            table_path,
+            dtype=get_type(row_type) if row_type else None,
+            index_col=index_col,
+        )
+    except FileNotFoundError:
+        if not create_if_not_exist:
+            raise FileNotFoundError(f"Table {table_name} not found in {data_path}.")
+        table_df = pd.DataFrame(columns=list(row_type.__annotations__.keys()))
+    return table_df
+
+
+def save_table(
+    data_path: str,
+    table_name: str,
+    table_df: pd.DataFrame,
+) -> None:
+    table_path: str = os.path.join(data_path, f"{table_name}.csv")
+    table_df.to_csv(table_path, index=False)
+
+
+def load_collection_actions_table(data_path: str) -> pd.DataFrame:
+    return load_table(
+        data_path, "collection_actions", CollectionActionsRow, False, ["period", "aid"]
+    )
+
+
+def load_accounts_table(data_path: str) -> pd.DataFrame:
+    return load_table(data_path, "accounts", AccountsRow, False, "aid")
+
+
+def load_clients_table(data_path: str) -> pd.DataFrame:
+    return load_table(data_path, "clients", ClientsRow, False, "cid")
+
+
+def load_transactions_table(data_path: str) -> pd.DataFrame:
+    return load_table(
+        data_path, "transactions", TransactionsRow, False, ["period", "aid"]
+    )
+
+
+def load_abt_summary_table(data_path: str, period: int) -> pd.DataFrame:
+    return load_table(
+        data_path, f"summary_abt_{period}", None, False, ["period", "aid"]
+    )
+
+
+def load_abt_base_table(data_path: str, period: int) -> pd.DataFrame:
+    return load_table(data_path, f"abt_base_{period}", None, False, ["period", "aid"])
+
+
+def get_period_range(start_period: int, end_period: int) -> List[int]:
+    period_range: List[int] = []
+    current_period: int = start_period
+    while current_period <= end_period:
+        period_range.append(current_period)
+        current_period = get_relative_period(current_period, 1)
+    return period_range
+
+
+def get_all_cidaids(transactions: pd.DataFrame, period: int) -> List[CidAid]:
     """
     Returns a list of dictionaries with all "cid" and "aid" for the transactions in the given period.
     """
-    transactions_tmp = transactions[transactions["period"].astype(str) == period]
+    transactions_tmp = transactions.loc[(period,), :]
     cidaids: List[CidAid] = []
-    for _, row in transactions_tmp.iterrows():
-        cidaids.append({"cid": row["cid"], "aid": row["aid"]})
+    for row in transactions_tmp.itertuples(True):
+        cidaids.append({"cid": getattr(row, "cid"), "aid": getattr(row, "Index")})
     return cidaids
 
 
 def get_transactions_data(
-    transactions: pd.DataFrame, aid: str, period: str
+    transactions: pd.DataFrame, aid: str, period: int
 ) -> TransactionsData | None:
     """
     Returns a dictionary for the transactions for given aid and period with the following keys:
@@ -89,46 +143,41 @@ def get_transactions_data(
     - coll_status: str
     - pay_days: int
     """
-    transactions_tmp = transactions[
-        (transactions["aid"] == aid) & (transactions["period"] == period)
-    ]
-    if transactions_tmp.empty:
+    try:
+        row = cast(pd.Series, transactions.loc[(period, aid)])
+        return {
+            "paid_installments": row["paid_installments"],
+            "due_installments": row["due_installments"],
+            "status": row["status"],
+            "coll_status": row["coll_status"],
+            "pay_days": row["pay_days"],
+        }
+    except KeyError:
         return None
-    return {
-        "paid_installments": transactions_tmp["paid_installments"].iloc[0],
-        "due_installments": transactions_tmp["due_installments"].iloc[0],
-        "status": transactions_tmp["status"].iloc[0],
-        "coll_status": transactions_tmp["coll_status"].iloc[0],
-        "pay_days": transactions_tmp["pay_days"].iloc[0],
-    }
 
 
 def get_collection_actions(
-    collection_actions: pd.DataFrame, aid: str, period: str
+    collection_actions: pd.DataFrame, aid: str, period: int
 ) -> Union[str, None]:
     """
     Returns a string of actions for the given aid and period. If there are no actions, returns None.
     """
-    action: str = ""
-    collection_actions_tmp = collection_actions[
-        (collection_actions["aid"] == aid) & (collection_actions["period"] == period)
-    ]
-    for _, row in collection_actions_tmp.iterrows():
-        action = f"{(str(int(row['action'])))}{action}"
-    if action == "":
+    try:
+        action: str = str(collection_actions.loc[(period, aid), "action"])
+    except KeyError:
         return None
     return action
 
 
 def get_account_period_info(
-    abt: pd.DataFrame,
+    abt: pd.DataFrame | None,
     transactions: pd.DataFrame,
-    collection_actions: pd.DataFrame,
+    collection_actions: pd.DataFrame | None,
     cid: str,
     aid: str,
-    period: str,
+    period: int,
     included_abt_columns: List[str] | None = None,
-    excluded_abt_columns: List[str] = EXCLUDED_ABT_COLUMNS,
+    excluded_abt_columns: List[str] = [],
 ) -> AccountPeriodInfo | None:
     """
     Returns a dictionary formed from the data from SAS table for a given cid, aid and period with the following keys:
@@ -139,18 +188,26 @@ def get_account_period_info(
     - transactions_data: TransactionsData
     - action: str | None
     """
-    abt_tmp = abt.loc[abt["aid"] == aid]
-    if abt_tmp.empty:
-        observation = None
-    else:
-        if included_abt_columns is not None:
-            abt_tmp = abt_tmp[included_abt_columns]
-        abt_tmp = abt_tmp.drop(columns=excluded_abt_columns, errors="ignore")
-        observation = abt_tmp.iloc[0]
     status_data = get_transactions_data(transactions, aid, period)
     if status_data is None:
         return None
-    action = get_collection_actions(collection_actions, aid, period)
+    if abt is None:
+        observation = None
+    else:
+        try:
+            account_period_row: pd.Series = cast(pd.Series, abt[aid])
+            if included_abt_columns is not None:
+                account_period_row = account_period_row[included_abt_columns]
+            account_period_row = account_period_row.drop(
+                columns=excluded_abt_columns, errors="ignore"
+            )
+            observation = account_period_row
+        except KeyError:
+            observation = None
+    if collection_actions is None:
+        action = None
+    else:
+        action = get_collection_actions(collection_actions, aid, period)
     return {
         "cid": cid,
         "aid": aid,
@@ -162,7 +219,7 @@ def get_account_period_info(
 
 
 def get_all_accounts_histories(
-    sas_data_path: str,
+    data_path: str,
     included_abt_columns: List[str] | None = None,
 ) -> Dict[str, AccountHistory]:
     """
@@ -172,38 +229,19 @@ def get_all_accounts_histories(
     """
     # aid should be the key of the dictionary
     accounts_histories: Dict[str, AccountHistory] = {}
-    transactions = pd.read_sas(
-        f"{sas_data_path}\\transactions.sas7bdat", format="sas7bdat", encoding="utf-8"
+    transactions = load_transactions_table(data_path)
+    collection_actions = load_collection_actions_table(data_path)
+    all_periods: List[int] = (
+        transactions.index.get_level_values(0).unique().astype(int).tolist()
     )
-    collection_actions = pd.read_sas(
-        f"{sas_data_path}\\collection_actions.sas7bdat",
-        format="sas7bdat",
-        encoding="utf-8",
-    )
-    all_periods: List[str] = transactions["period"].unique().astype(str).tolist()
     for period in all_periods:
         print("period:", period)
         all_cidaids = get_all_cidaids(transactions, period)
-        previous_abt = None
         try:
-            previous_abt = pd.read_sas(
-                f"{sas_data_path}\\abt_{get_previous_period(period)}.sas7bdat",
-                format="sas7bdat",
-                encoding="utf-8",
-            )
-            if previous_abt is None:
-                print(f"File abt_{get_previous_period(period)}.sas7bdat is empty")
-        except FileNotFoundError:
-            print(f"File abt_{get_previous_period(period)}.sas7bdat not found")
-        try:
-            current_abt = pd.read_sas(
-                f"{sas_data_path}\\abt_{period}.sas7bdat",
-                format="sas7bdat",
-                encoding="utf-8",
-            )
-        except FileNotFoundError:
-            print(f"File abt_{period}.sas7bdat not found")
-            raise FileNotFoundError
+            current_abt = load_abt_summary_table(data_path, period)
+        except FileNotFoundError as error:
+            print(error)
+            current_abt = None
         for cidaids in all_cidaids:
             cid = cidaids["cid"]
             aid = cidaids["aid"]
@@ -245,42 +283,3 @@ def load_histories(directory: str, name: str) -> Dict[str, AccountHistory]:
     """
     with open(f"{directory}/{name}.pkl", "rb") as f:
         return pickle.load(f)
-
-
-def load_table(
-    data_path: str,
-    table_name: str,
-    row_type: type | None,
-    create_if_not_exist: bool = True,
-    index_col: str | List[str] | None = None,
-) -> pd.DataFrame:
-    table_path: str = os.path.join(data_path, f"{table_name}.csv")
-    try:
-        table_df = pd.read_csv(
-            table_path,
-            dtype=get_type(row_type) if row_type else None,
-            index_col=index_col,
-        )
-    except FileNotFoundError:
-        if not create_if_not_exist:
-            raise FileNotFoundError(f"Table {table_name} not found in {data_path}.")
-        table_df = pd.DataFrame(columns=list(row_type.__annotations__.keys()))
-    return table_df
-
-
-def save_table(
-    data_path: str,
-    table_name: str,
-    table_df: pd.DataFrame,
-) -> None:
-    table_path: str = os.path.join(data_path, f"{table_name}.csv")
-    table_df.to_csv(table_path, index=False)
-
-
-def get_period_range(start_period: int, end_period: int) -> List[int]:
-    period_range: List[int] = []
-    current_period: int = start_period
-    while current_period <= end_period:
-        period_range.append(current_period)
-        current_period = get_relative_period(current_period, 1)
-    return period_range
