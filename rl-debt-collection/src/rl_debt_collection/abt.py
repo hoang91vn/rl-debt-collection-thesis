@@ -1,0 +1,553 @@
+from enum import Enum
+import json
+import math
+from typing import Any, Callable, Dict, List, Tuple, TypedDict, cast
+import numpy as np
+import pandas as pd
+from .tables_types import (
+    CollectionActionsRow,
+    TransactionsRow,
+    ClientsRow,
+    AbtBaseRow,
+    ProductionRow,
+    AccountsRow,
+)
+from .dictionaries import (
+    Branch,
+    Gender,
+    JobCode,
+    MaritalStatus,
+    City,
+    Homes,
+    Cars,
+    CollStat,
+    Status,
+)
+from .clients_code import Client, Account
+from .abt_behavioral_columns import (
+    make_abt_base,
+    make_production_df,
+    make_summary_abt,
+)
+from .util import (
+    create_table,
+    get_month_period_difference,
+    get_relative_period,
+    get_type,
+    load_clients_table,
+    load_abt_base_table,
+    load_abt_summary_table,
+    load_accounts_table,
+    load_transactions_table,
+    load_collection_actions_table,
+    load_or_create_table,
+    save_table,
+)
+import os
+import datetime
+import logging
+
+# fmt: off
+data_mat = np.array([
+    [0.850, 0.150, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.250, 0.600, 0.150, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.040, 0.220, 0.200, 0.540, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.005, 0.020, 0.081, 0.102, 0.792, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.010, 0.080, 0.090, 0.820, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.020, 0.030, 0.940]
+], dtype=np.float64)
+data_mat_positive = np.array([
+    [0.800, 0.200, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.250, 0.850, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.050, 0.750, 0.200, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.005, 0.025, 0.080, 0.890, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.012, 0.088, 0.900, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000, 0.000],
+    [0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.010, 0.090, 0.900, 0.000]
+], dtype=np.float64)
+# fmt: on
+
+
+def get_first_transaction_row(cid: str, aid: str, period: int) -> TransactionsRow:
+    return TransactionsRow(
+        cid=cid,
+        aid=aid,
+        period=period,
+        fin_period=period,
+        status=Status.A,
+        coll_status=CollStat.GOOD_PAYER,
+        due_installments=0,
+        paid_installments=0,
+        pay_days=0,
+    )
+
+
+def get_period(date: datetime.datetime) -> int:
+    """
+    >>> get_period(datetime.datetime(2024, 7, 29))
+    202407
+    """
+    return date.year * 100 + date.month
+
+
+def get_next_period(period: int) -> int:
+    """
+    >>> get_next_period(202412)
+    202501
+    """
+    return get_relative_period(period, 1)
+
+
+def get_period_datetime(period: int) -> datetime.datetime:
+    """
+    >>> get_period_datetime(202401)
+    datetime.datetime(2024, 1, 1, 0, 0)
+    """
+    year: int = period // 100
+    month: int = period % 100
+    return datetime.datetime(year, month, 1)
+
+
+def get_date_datetime(date: int) -> datetime.datetime:
+    """
+    >>> get_date_datetime(20240101)
+    datetime.datetime(2024, 1, 1, 0, 0)
+    """
+    # YYYYMMDD
+    year: int = date // 10000
+    month: int = (date // 100) % 100
+    day: int = date % 100
+    return datetime.datetime(year, month, day)
+
+
+def get_date_int(date: datetime.datetime) -> int:
+    return date.year * 10000 + date.month * 100 + date.day
+
+
+def is_last_day_of_month(date: datetime.datetime) -> bool:
+    return (date + datetime.timedelta(days=1)).day == 1
+
+
+def is_last_day_of_year(date: datetime.datetime) -> bool:
+    return date.month == 12 and date.day == 31
+
+
+def generate_aid(date: datetime.datetime, type: str, account_in_day: int) -> str:
+    """
+    >>> generate_aid(datetime.datetime(2024, 9, 27), "ins", 112)
+    'ins202409270112'
+    """
+    year: int = date.year
+    month: int = date.month
+    day: int = date.day
+    aid: str = f"{type}{year}{month:02d}{day:02d}{account_in_day:04d}"
+    return aid
+
+
+def run(
+    data_path: str,
+    end_date: int,
+    new_clients_count: int,
+    choose_actions_func: Callable[[str, List[str]], Dict[str, str]],
+    simulate_reactions_func: Callable[[str, Dict[str, str], int], Dict[str, bool]],
+    start_date: int | None = None,
+    overwrite: bool = False,
+    generator: np.random.Generator | None = None,
+) -> None:
+    """
+    Runs the simulation. If start_date is None, it will try to resume the last simulation. If overwrite == True, all the files in data_path will be removed.
+    """
+    if start_date is None:
+        metadata_path: str = os.path.join(data_path, "metadata.json")
+        try:
+            # read json
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+                # YYYYMMDD
+                start_date_str: str = metadata["current_date"]
+                start_date = int(start_date_str)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Metadata file not found in {data_path}. Please provide a valid current_date."
+            )
+    if overwrite:
+        # remove all files in data_path
+        for file in os.listdir(data_path):
+            file_path: str = os.path.join(data_path, file)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+    if generator is None:
+        generator = np.random.default_rng()
+    simulate(
+        data_path,
+        start_date,
+        end_date,
+        new_clients_count,
+        2,
+        generator,
+        choose_actions_func,
+        simulate_reactions_func,
+    )
+
+
+def get_new_coll_status(due_installments: int, coll_status: CollStat) -> CollStat:
+    if coll_status in [CollStat.GOOD_PAYER, CollStat.CURED] and due_installments == 1:
+        coll_status = CollStat.AMICABLE
+    elif coll_status == CollStat.AMICABLE and due_installments == 4:
+        coll_status = CollStat.PRE_LEGAL
+    elif coll_status == CollStat.PRE_LEGAL and due_installments == 5:
+        coll_status = CollStat.LEGAL
+    elif coll_status == CollStat.LEGAL and due_installments == 7:
+        coll_status = CollStat.EXECUTION
+    elif coll_status == CollStat.EXECUTION and due_installments == 10:
+        coll_status = CollStat.POST_EXECUTION
+    elif coll_status != CollStat.GOOD_PAYER and due_installments == 0:
+        coll_status = CollStat.CURED
+    if due_installments == 12:
+        coll_status = CollStat.WRITE_OFF
+    return coll_status
+
+
+def save_metadata(data_path: str, current_date: datetime.datetime) -> None:
+    metadata_path: str = os.path.join(data_path, "metadata.json")
+    metadata = {
+        "current_date": get_date_int(current_date),
+    }
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=4)
+    logging.info(f"Metadata saved to {metadata_path}")
+
+
+def generate_new_clients_accounts_transactions(
+    generator: np.random.Generator,
+    new_clients_count: int,
+    current_date: datetime.datetime,
+    next_cid: int,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    new_clients: List[Client] = []
+    new_accounts: List[Account] = []
+    new_transactions: List[TransactionsRow] = []
+    for new_client_index in range(new_clients_count):
+        cid: str = str(next_cid).zfill(10)
+        client: Client = Client.get_starter(
+            cid, generator, 2, current_date=current_date
+        )
+        new_clients.append(client)
+        next_cid += 1
+        aid: str = generate_aid(current_date, "ins", new_client_index + 1)
+        account: Account = Account.generate_account(
+            client, aid, current_date, generator
+        )
+        new_accounts.append(account)
+        new_transaction: TransactionsRow = get_first_transaction_row(
+            client.cid, aid, get_period(current_date)
+        )
+        new_transactions.append(new_transaction)
+    new_clients_df: pd.DataFrame = create_table(
+        ClientsRow, "cid", [client.to_dict() for client in new_clients]
+    )
+    new_accounts_df: pd.DataFrame = create_table(
+        AccountsRow, "aid", [account.to_dict() for account in new_accounts]
+    )
+    new_transactions_df: pd.DataFrame = create_table(
+        TransactionsRow,
+        ["period", "aid"],
+        [transaction for transaction in new_transactions],
+    )
+    return new_clients_df, new_accounts_df, new_transactions_df
+
+
+def get_next_cid(clients_df: pd.DataFrame) -> int:
+    if clients_df.empty:
+        return 1
+    else:
+        return int(clients_df.index.get_level_values("cid").astype(int).max()) + 1
+
+
+def simulate_reactions(
+    data_path: str, last_actions: Dict[str, str], period: int
+) -> Dict[str, bool]:
+    generator: np.random.Generator = np.random.default_rng()
+    reactions: Dict[str, bool] = {}
+    for aid, action in last_actions.items():
+        # 50-50
+        if generator.random() < 0.5:
+            reactions[aid] = True
+        else:
+            reactions[aid] = False
+    return reactions
+
+
+def simulate_transactions(
+    generator: np.random.Generator,
+    summary_abt_df: pd.DataFrame,
+    reactions: Dict[str, bool],
+    current_period: int,
+) -> pd.DataFrame:
+    next_period: int = get_next_period(current_period)
+    new_transactions: List[TransactionsRow] = []
+    counts_array: np.ndarray = np.zeros(13, dtype=int)
+    # print(summary_abt_df)
+    stat: pd.DataFrame = (
+        summary_abt_df[["act_due", "score"]].groupby("act_due").agg({"score": "count"})
+    )
+    for i in range(0, 13):
+        if i in stat.index:
+            counts_array[i] = stat.loc[i, "score"]
+    # print(counts_array)
+
+    for act_due_group_value, act_due_group in summary_abt_df.sort_values(
+        by=["act_due", "score"], ascending=[True, False]
+    ).groupby("act_due"):
+        act_due_group_value = cast(int, act_due_group_value)
+        ob: int = 0
+        positive_reaction_sums = np.zeros(13, dtype=int)
+        negative_reaction_sums = np.zeros(13, dtype=int)
+        for i in range(0, 13):
+            positive_reaction_sums[i] = (
+                data_mat_positive[act_due_group_value, 0:i].sum()
+                * counts_array[act_due_group_value]
+            )
+            negative_reaction_sums[i] = (
+                data_mat[act_due_group_value, 0:i].sum()
+                * counts_array[act_due_group_value]
+            )
+        for summary_row in act_due_group.itertuples():
+            ob += 1
+            reaction: bool = (
+                reactions[getattr(summary_row, "aid")]
+                if getattr(summary_row, "period") != getattr(summary_row, "fin_period")
+                else True
+            )
+            appropriate_sums = (
+                positive_reaction_sums if reaction else negative_reaction_sums
+            )
+            act_due: int = getattr(summary_row, "act_due")
+            act_paid: int = getattr(summary_row, "act_paid_installments")
+
+            new_due_installments: int = act_due
+            new_paid_installments: int = act_paid
+            total_due_for_next_period: int = np.min(
+                [
+                    get_month_period_difference(
+                        int(getattr(summary_row, "fin_period")), next_period
+                    ),
+                    getattr(summary_row, "app_n_installments"),
+                ]
+            )
+            new_status: Status = getattr(summary_row, "status")
+            pay_days: int = 0
+            if 0 <= act_due < 12:
+                i = next(
+                    (i for i in range(12, -1, -1) if ob > appropriate_sums[i]),
+                    None,
+                )
+                assert i is not None
+                new_due_installments = np.max(
+                    [
+                        np.min(
+                            [
+                                i,
+                                total_due_for_next_period - act_paid,
+                            ]
+                        ),
+                        0,
+                    ]
+                )
+                new_paid_installments = total_due_for_next_period - new_due_installments
+                if new_paid_installments == act_paid:
+                    # No payment
+                    pay_days = 0
+                else:
+                    # Payment
+                    if getattr(summary_row, "act_due") < 2:
+                        pay_days = -int(15 * abs(generator.normal(0, 1)) / 4)
+                    else:
+                        pay_days = int(15 * generator.normal(0, 1) / 4)
+            if new_paid_installments == getattr(summary_row, "app_n_installments"):
+                new_due_installments = 0
+                new_status = Status.C
+            elif new_due_installments == 12:
+                new_status = Status.B
+
+            new_coll_status = get_new_coll_status(
+                new_due_installments, getattr(summary_row, "coll_status")
+            )
+
+            new_transaction: TransactionsRow = TransactionsRow(
+                aid=getattr(summary_row, "aid"),
+                cid=getattr(summary_row, "cid"),
+                period=get_next_period(current_period),
+                fin_period=getattr(summary_row, "fin_period"),
+                status=new_status,
+                coll_status=new_coll_status,
+                due_installments=new_due_installments,
+                paid_installments=new_paid_installments,
+                pay_days=pay_days,
+            )
+            new_transactions.append(new_transaction)
+
+    new_transactions_df: pd.DataFrame = create_table(
+        TransactionsRow, ["period", "aid"], new_transactions
+    )
+
+    # new_transactions_df: pd.DataFrame = pd.DataFrame(
+    #     [transaction for transaction in new_transactions],
+    # )
+    # new_transactions_df.set_index(["period", "aid"], inplace=True)
+
+    return new_transactions_df
+
+
+def simulate_next_year_for_clients(
+    clients_df: pd.DataFrame, generator: np.random.Generator
+) -> pd.DataFrame:
+    clients = Client.get_list_from_dataframe(clients_df)
+    for client in clients:
+        client.simulate_next_year(generator=generator)
+    new_clients_df: pd.DataFrame = create_table(
+        ClientsRow, "cid", [client.to_dict() for client in clients]
+    )
+    return new_clients_df
+
+
+def get_new_collection_actions_df(
+    new_transactions_df: pd.DataFrame,
+    actions: Dict[str, str],
+) -> pd.DataFrame:
+    new_collection_actions: List[CollectionActionsRow] = []
+    for transaction_row in new_transactions_df.itertuples():
+        if getattr(transaction_row, "status") == Status.A:
+            aid: str = getattr(transaction_row, "Index")[1]
+            period: int = int(getattr(transaction_row, "Index")[0])
+            action: str = actions[aid]
+            collection_action: CollectionActionsRow = CollectionActionsRow(
+                action=action,
+                cid=getattr(transaction_row, "cid"),
+                aid=aid,
+                period=period,
+                coll_status=getattr(transaction_row, "coll_status"),
+            )
+            new_collection_actions.append(collection_action)
+
+    new_collection_actions_df: pd.DataFrame = create_table(
+        CollectionActionsRow, ["period", "aid"], new_collection_actions
+    )
+    return new_collection_actions_df
+
+
+def simulate(
+    data_path: str,
+    start_date: int,
+    end_date: int,
+    new_clients_count: int,
+    new_accounts_count: int,
+    generator: np.random.Generator,
+    choose_actions_func: Callable[[str, List[str]], Dict[str, str]],
+    simulate_reactions_func: Callable[[str, Dict[str, str], int], Dict[str, bool]],
+) -> None:
+    # load tables
+    clients_df: pd.DataFrame = load_clients_table(data_path, True)
+    accounts_df: pd.DataFrame = load_accounts_table(data_path, True)
+    transactions_df: pd.DataFrame = load_transactions_table(data_path, True)
+    collection_actions_df: pd.DataFrame = load_collection_actions_table(data_path, True)
+    start_date_datetime: datetime.datetime = get_date_datetime(start_date)
+    end_date_datetime: datetime.datetime = get_date_datetime(end_date)
+    current_date: datetime.datetime = start_date_datetime
+    while current_date < end_date_datetime:
+        current_period: int = get_period(current_date)
+        new_clients_df, new_accounts_df, new_transactions_df = (
+            generate_new_clients_accounts_transactions(
+                generator,
+                new_clients_count,
+                current_date,
+                get_next_cid(clients_df),
+            )
+        )
+        clients_df = pd.concat(
+            [clients_df, new_clients_df], ignore_index=False, copy=False
+        )
+        accounts_df = pd.concat(
+            [accounts_df, new_accounts_df], ignore_index=False, copy=False
+        )
+        transactions_df = pd.concat(
+            [transactions_df, new_transactions_df], ignore_index=False, copy=False
+        )
+        if is_last_day_of_month(current_date):
+            print(f"closing period {current_period}")
+            production_df: pd.DataFrame = make_production_df(clients_df, accounts_df)
+            abt_base_current_period_df: pd.DataFrame = make_abt_base(
+                production_df, transactions_df, current_period
+            )
+            save_table(
+                data_path,
+                f"abt_base_{current_period}",
+                abt_base_current_period_df,
+            )
+            summary_abt_df: pd.DataFrame = make_summary_abt(
+                current_period, data_path, generator
+            )
+            save_table(
+                data_path,
+                f"summary_abt_{current_period}",
+                summary_abt_df,
+            )
+            try:
+                last_actions: Dict[str, str] = cast(
+                    pd.Series, collection_actions_df.loc[current_period, "action"]
+                ).to_dict()
+            except KeyError:
+                last_actions: Dict[str, str] = {}
+            reactions: Dict[str, bool] = simulate_reactions_func(
+                data_path, last_actions, current_period
+            )
+            new_transactions_df = simulate_transactions(
+                generator,
+                summary_abt_df,
+                reactions,
+                current_period,
+            )
+            new_transactions_for_active_accounts_df: pd.DataFrame = (
+                new_transactions_df.loc[new_transactions_df["status"] == Status.A]
+            )
+            aids_to_decide: List[str] = (
+                new_transactions_for_active_accounts_df.index.get_level_values(
+                    "aid"
+                ).tolist()
+            )
+            transactions_df = pd.concat(
+                [transactions_df, new_transactions_df], ignore_index=False, copy=False
+            )
+            save_table(data_path, "transactions", transactions_df)
+            actions: Dict[str, str] = choose_actions_func(data_path, aids_to_decide)
+            new_collection_actions_df = get_new_collection_actions_df(
+                new_transactions_for_active_accounts_df, actions
+            )
+            collection_actions_df = pd.concat(
+                [collection_actions_df, new_collection_actions_df],
+                ignore_index=False,
+                copy=False,
+            )
+            save_table(data_path, "collection_actions", collection_actions_df)
+        if is_last_day_of_year(current_date):
+            clients_df = simulate_next_year_for_clients(clients_df, generator)
+
+        current_date += datetime.timedelta(days=1)
+
+    # save tables
+    save_table(data_path, "clients", clients_df)
+    save_table(data_path, "accounts", accounts_df)
+    save_table(data_path, "transactions", transactions_df)
+    save_table(data_path, "collection_actions", collection_actions_df)
+    save_metadata(data_path, current_date)

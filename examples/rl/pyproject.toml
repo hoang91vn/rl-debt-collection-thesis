@@ -1,0 +1,25 @@
+[project]
+name = "rl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "gymnasium>=1.2.0",
+    "matplotlib>=3.10.3",
+    "numpy>=2.3.1",
+    "pandas>=2.3.0",
+    "rl-debt-collection",
+    "tensorboard>=2.20.0",
+    "torch>=2.7.1",
+]
+
+[tool.uv.sources]
+rl-debt-collection = {path = "../../rl-debt-collection", editable = false}
+# rl-debt-collection = {path = "../../rl-debt-collection/dist/rl_debt_collection-0.1.0-py3-none-any.whl"}
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-benchmark>=5.1.0",
+]
