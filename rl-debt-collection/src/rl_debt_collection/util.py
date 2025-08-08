@@ -211,26 +211,38 @@ def get_collection_actions(
     return action
 
 
-# def get_account_period_info_v2(
-#     data_path: str, period: int, aid: str
-# ) -> AccountPeriodInfo | None:
-#     try:
-#         current_abt = load_abt_summary_table(data_path, period)
-#     except FileNotFoundError as error:
-#         print(error)
-#         current_abt = None
-#     transactions = load_transactions_table(data_path)
-#     try:
-#         collection_actions = load_collection_actions_table(data_path)
-#     except FileNotFoundError:
-#         "NO COLLECTION ACTIONS"
-#         collection_actions = None
-#     return get_account_period_info(
-#         current_abt, transactions, collection_actions, cid, aid, period
-#     )
+def get_cid_for_aid(transactions: pd.DataFrame, aid: str) -> str:
+    row = transactions[transactions.index.get_level_values("aid") == aid]
+    if row.empty:
+        raise KeyError(f"No transactions found for aid: {aid}")
+    return row.iloc[0]["cid"]
 
 
 def get_account_period_info(
+    data_path: str, period: int, aid: str
+) -> AccountPeriodInfo | None:
+    try:
+        current_abt = load_abt_summary_table(data_path, period)
+    except FileNotFoundError as error:
+        print(error)
+        current_abt = None
+    transactions = load_transactions_table(data_path)
+    try:
+        collection_actions = load_collection_actions_table(data_path)
+    except FileNotFoundError:
+        "NO COLLECTION ACTIONS"
+        collection_actions = None
+    return get_account_period_info_raw(
+        current_abt,
+        transactions,
+        collection_actions,
+        get_cid_for_aid(transactions, aid),
+        aid,
+        period,
+    )
+
+
+def get_account_period_info_raw(
     abt: pd.DataFrame | None,
     transactions: pd.DataFrame,
     collection_actions: pd.DataFrame | None,
@@ -314,7 +326,7 @@ def get_all_accounts_histories(
                     "history": [],
                     "terminated": False,
                 }
-            current_info = get_account_period_info(
+            current_info = get_account_period_info_raw(
                 current_abt,
                 transactions,
                 collection_actions,
