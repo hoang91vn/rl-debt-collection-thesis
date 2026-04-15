@@ -12,3 +12,6 @@
 .venv
 src/playground
 tests/test_data/simulate
+artifacts/thesis_abt/*.csv
+artifacts/thesis_wide_abt/*.csv
+examples/thesis_baseline/runs/
