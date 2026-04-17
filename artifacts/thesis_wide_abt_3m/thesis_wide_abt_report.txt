@@ -1,0 +1,134 @@
+thesis_wide_abt report
+============================================================
+Source run dir : E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\examples\thesis_baseline\runs\thesis_baseline
+Output CSV     : E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\thesis_wide_abt_3m\thesis_wide_abt.csv
+
+Eligibility filter
+------------------------------------------------------------
+  Total aids (origination)           : 91,300
+  Dropped — insufficient_history (A) : 3,050
+  Dropped — early_default (B)        : 0
+  Eligible (rows in wide ABT)        : 88,250
+
+Split counts
+------------------------------------------------------------
+  train (terminated) : 71,550
+  oot   (censored)   : 16,700
+  censoring rate     : 0.1892
+
+observation_status distribution
+------------------------------------------------------------
+  defaulted  : 121
+  closed     : 71,429
+  censored   : 16,700
+
+Target — default_flag_12m (train set)
+------------------------------------------------------------
+  default_flag_12m=1 : 121
+  default_flag_12m=0 : 71,429
+  default rate       : 0.0017
+
+Feature count
+------------------------------------------------------------
+  Total columns      : 80
+  IDs                : 3
+  Target             : 1
+  Meta               : 3
+  Feature columns    : 73
+    Origination      : 16
+    Behavioral (9×3) : 27
+    Customer   (8×3) : 24
+    Aggregates       : 6
+
+Data quality — null counts per column group
+------------------------------------------------------------
+  Origination    :      0 nulls  OK
+  Behavioral     :      0 nulls  OK
+  Customer       :      0 nulls  OK
+  Aggregates     :      0 nulls  OK
+  Target         : 16,700 nulls  (expected 16,700)
+  Meta           :      0 nulls  OK
+  No unexpected nulls
+
+Schema: 80 columns, in order:
+------------------------------------------------------------
+    1. aid
+    2. cid
+    3. fin_period
+    4. app_income
+    5. app_loan_amount
+    6. app_n_installments
+    7. app_nom_branch
+    8. app_nom_gender
+    9. app_nom_job_code
+   10. app_number_of_children
+   11. app_nom_marital_status
+   12. app_nom_city
+   13. app_nom_home_status
+   14. app_nom_cars
+   15. app_spendings
+   16. act_age
+   17. installment
+   18. n_installments
+   19. loan_amount
+   20. act_due_m1
+   21. act_due_m2
+   22. act_due_m3
+   23. act_paid_installments_m1
+   24. act_paid_installments_m2
+   25. act_paid_installments_m3
+   26. act_utl_m1
+   27. act_utl_m2
+   28. act_utl_m3
+   29. act_dueutl_m1
+   30. act_dueutl_m2
+   31. act_dueutl_m3
+   32. act_cc_m1
+   33. act_cc_m2
+   34. act_cc_m3
+   35. act_dueinc_m1
+   36. act_dueinc_m2
+   37. act_dueinc_m3
+   38. act_days_m1
+   39. act_days_m2
+   40. act_days_m3
+   41. act_loaninc_m1
+   42. act_loaninc_m2
+   43. act_loaninc_m3
+   44. coll_status_m1
+   45. coll_status_m2
+   46. coll_status_m3
+   47. act_cus_seniority_m1
+   48. act_cus_seniority_m2
+   49. act_cus_seniority_m3
+   50. act_cus_n_loans_hist_m1
+   51. act_cus_n_loans_hist_m2
+   52. act_cus_n_loans_hist_m3
+   53. act_cus_n_statC_m1
+   54. act_cus_n_statC_m2
+   55. act_cus_n_statC_m3
+   56. act_cus_n_statB_m1
+   57. act_cus_n_statB_m2
+   58. act_cus_n_statB_m3
+   59. act_cus_n_loans_act_m1
+   60. act_cus_n_loans_act_m2
+   61. act_cus_n_loans_act_m3
+   62. act_cus_utl_m1
+   63. act_cus_utl_m2
+   64. act_cus_utl_m3
+   65. act_cus_dueutl_m1
+   66. act_cus_dueutl_m2
+   67. act_cus_dueutl_m3
+   68. act_cus_cc_m1
+   69. act_cus_cc_m2
+   70. act_cus_cc_m3
+   71. max_due
+   72. max_coll_status
+   73. trend_due
+   74. months_ever_due
+   75. months_coll_2plus
+   76. paid_fraction_at_obs
+   77. default_flag_12m
+   78. observation_status
+   79. split
+   80. obs_period
