@@ -2,11 +2,13 @@
 """Build thesis_wide_abt.csv for profit-driven credit scoring analysis.
 
 One row per eligible aid.  Features = origination snapshot + behavioral
-history flattened across months 1-6 (fin_period .. fin_period+5) +
-aggregate features.  Target = WRITE_OFF in months 7-18 after origination.
+history flattened across months 1-12 (fin_period .. fin_period+11) +
+aggregate features + summary_abt rolling stats at obs_period.
+Target = WRITE_OFF in months 13-24 after origination.
 
 Reads from a simulator run directory:
-  abt_base_*.csv  (all 60 period files)
+  abt_base_*.csv      (all period files)
+  summary_abt_*.csv   (one per period, contains rolling aggregate columns)
   accounts.csv
   transactions.csv
 """
@@ -23,8 +25,8 @@ import pandas as pd
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_DATA_DIR = Path("examples/thesis_baseline/runs/thesis_baseline")
-DEFAULT_OUTPUT_DIR = Path("artifacts/thesis_wide_abt_3m")
+DEFAULT_DATA_DIR  = Path("examples/thesis_baseline/runs/thesis_baseline")
+DEFAULT_OUTPUT_DIR = Path("artifacts/thesis_wide_abt_12m")
 
 ID_COLS = ["aid", "cid", "fin_period"]
 
@@ -67,9 +69,9 @@ CUS_BASE = [
     "act_cus_cc",
 ]
 
-MONTHS = [1, 2, 3]
+MONTHS     = list(range(1, 13))          # months 1-12
 BEHAV_FLAT = [f"{c}_m{m}" for c in BEHAV_BASE for m in MONTHS]
-CUS_FLAT = [f"{c}_m{m}" for c in CUS_BASE for m in MONTHS]
+CUS_FLAT   = [f"{c}_m{m}" for c in CUS_BASE   for m in MONTHS]
 
 AGG_COLS = [
     "max_due",
@@ -79,8 +81,22 @@ AGG_COLS = [
     "months_coll_2plus",
     "paid_fraction_at_obs",
 ]
+
+# Rolling stats extracted from summary_abt_{obs_period}.csv
+# ags6_*/ags12_* may be NaN for short-history accounts — rows are kept as-is.
+SUMMARY_PREFIXES = ("agr6_", "ags6_", "agr12_", "ags12_")
+_SUMMARY_SUFFIXES = [
+    "Mean_Due",      "Max_Due",      "Min_Due",
+    "Mean_Days",     "Max_Days",     "Min_Days",
+    "Mean_CMax_Days","Max_CMax_Days","Min_CMax_Days",
+    "Mean_CMax_Due", "Max_CMax_Due", "Min_CMax_Due",
+]
+SUMMARY_AGG_COLS = [
+    f"{p}{s}" for p in SUMMARY_PREFIXES for s in _SUMMARY_SUFFIXES
+]  # 4 × 12 = 48 columns
+
 TARGET_COL = ["default_flag_12m"]
-META_COLS = ["observation_status", "split", "obs_period"]
+META_COLS  = ["observation_status", "split", "obs_period"]
 
 FINAL_COLS = (
     ID_COLS
@@ -89,6 +105,7 @@ FINAL_COLS = (
     + BEHAV_FLAT
     + CUS_FLAT
     + AGG_COLS
+    + SUMMARY_AGG_COLS
     + TARGET_COL
     + META_COLS
 )
@@ -119,7 +136,7 @@ def yyyymm_add_series(period: pd.Series, months: int) -> pd.Series:
 
 def load_abt_base(data_dir: Path) -> pd.DataFrame:
     """Load all abt_base files, keeping only rows in the behavioral window
-    (month offset 0-5 relative to fin_period of each account)."""
+    (month offset 0-11 relative to fin_period of each account)."""
     abt_files = sorted(data_dir.glob("abt_base_*.csv"))
     if not abt_files:
         raise FileNotFoundError(f"No abt_base_*.csv files in {data_dir}")
@@ -127,11 +144,11 @@ def load_abt_base(data_dir: Path) -> pd.DataFrame:
     frames = []
     for f in abt_files:
         df = pd.read_csv(f)
-        fin_m = to_month_num(df["fin_period"])
-        per_m = to_month_num(df["period"])
+        fin_m  = to_month_num(df["fin_period"])
+        per_m  = to_month_num(df["period"])
         offset = per_m - fin_m
-        mask = (offset >= 0) & (offset <= 2)
-        df = df[mask].copy()
+        mask   = (offset >= 0) & (offset <= 11)
+        df     = df[mask].copy()
         df["_offset"] = offset[mask].values
         frames.append(df)
     abt = pd.concat(frames, ignore_index=True)
@@ -184,56 +201,56 @@ def compute_eligibility(
 ) -> tuple[set[str], pd.DataFrame]:
     """Return (eligible_aids, drop_summary).
 
-    Check A: abt_base must have all 6 behavioral offsets (0-5).
+    Check A: abt_base must have all 12 behavioral offsets (0-11).
     Check B: no WRITE_OFF (coll_status==8) at period <= obs_period
-             (obs_period = fin_period + 6 months, offset 6).
+             (obs_period = fin_period + 12 months, offset 12).
     """
     log("Step 3: eligibility filter")
     total = len(orig)
 
-    # --- Check A: full 6-month behavioral history ---
+    # --- Check A: full 12-month behavioral history ---
     counts = abt.groupby("aid")["_offset"].nunique()
-    pass_a = set(counts[counts == 3].index)
+    pass_a = set(counts[counts == 12].index)
     fail_a = set(orig["aid"]) - pass_a
-    log(f"  Check A — full history : {len(pass_a):,} pass, {len(fail_a):,} fail")
+    log(f"  Check A — full 12-month history : {len(pass_a):,} pass, {len(fail_a):,} fail")
 
-    # --- Check B: no early WRITE_OFF (at or before obs_period = offset 6) ---
+    # --- Check B: no early WRITE_OFF (at or before obs_period = offset 12) ---
     fin_period_map = orig.set_index("aid")["fin_period"]
     tx_a = tx[tx["aid"].isin(pass_a)].copy()
     tx_a["_fin_month"] = to_month_num(tx_a["aid"].map(fin_period_map))
     tx_a["_per_month"] = to_month_num(tx_a["period"])
-    tx_a["_offset"] = tx_a["_per_month"] - tx_a["_fin_month"]
+    tx_a["_offset"]    = tx_a["_per_month"] - tx_a["_fin_month"]
     early_wo_aids = set(
         tx_a.loc[
-            (tx_a["coll_status"] == 8) & (tx_a["_offset"] <= 3), "aid"
+            (tx_a["coll_status"] == 8) & (tx_a["_offset"] <= 12), "aid"
         ].unique()
     )
     fail_b = early_wo_aids
-    log(f"  Check B — early WRITE_OFF : {len(fail_b):,} fail")
+    log(f"  Check B — early WRITE_OFF       : {len(fail_b):,} fail")
 
     eligible = pass_a - fail_b
     log(f"  Eligible : {len(eligible):,} / {total:,} total aids")
 
     drop_summary = pd.DataFrame([{
-        "total_aids": total,
+        "total_aids":                  total,
         "fail_a_insufficient_history": len(fail_a),
-        "fail_b_early_default": len(fail_b),
-        "eligible": len(eligible),
+        "fail_b_early_default":        len(fail_b),
+        "eligible":                    len(eligible),
     }])
     return eligible, drop_summary
 
 
 # ---------------------------------------------------------------------------
-# Step 4 — Flatten behavioral features (months 1-6)
+# Step 4 — Flatten behavioral features (months 1-12)
 # ---------------------------------------------------------------------------
 
 def flatten_behavioral(abt: pd.DataFrame, eligible: set[str]) -> pd.DataFrame:
-    """Pivot BEHAV_BASE + CUS_BASE columns across months 1-6 for eligible aids."""
-    log("Step 4: flattening behavioral features")
+    """Pivot BEHAV_BASE + CUS_BASE columns across months 1-12 for eligible aids."""
+    log("Step 4: flattening behavioral features (months 1-12)")
     beh = abt[abt["aid"].isin(eligible)].copy()
     beh["m"] = beh["_offset"] + 1   # 1-indexed
 
-    all_base_cols = BEHAV_BASE + CUS_BASE
+    all_base_cols  = BEHAV_BASE + CUS_BASE
     pivot_frames: list[pd.DataFrame] = []
     for col in all_base_cols:
         piv = beh.pivot_table(
@@ -254,16 +271,16 @@ def flatten_behavioral(abt: pd.DataFrame, eligible: set[str]) -> pd.DataFrame:
 def compute_aggregates(df: pd.DataFrame) -> pd.DataFrame:
     """Compute 6 aggregate features from the flattened behavioral columns."""
     log("Step 5: computing aggregate features")
-    due_cols = [f"act_due_m{m}" for m in MONTHS]
-    cs_cols  = [f"coll_status_m{m}" for m in MONTHS]
+    due_cols = [f"act_due_m{m}"          for m in MONTHS]
+    cs_cols  = [f"coll_status_m{m}"      for m in MONTHS]
 
-    df["max_due"]            = df[due_cols].max(axis=1)
-    df["max_coll_status"]    = df[cs_cols].max(axis=1)
-    df["trend_due"]          = df["act_due_m3"] - df["act_due_m1"]
-    df["months_ever_due"]    = (df[due_cols] > 0).sum(axis=1).astype(int)
-    df["months_coll_2plus"]  = (df[cs_cols] >= 2).sum(axis=1).astype(int)
+    df["max_due"]             = df[due_cols].max(axis=1)
+    df["max_coll_status"]     = df[cs_cols].max(axis=1)
+    df["trend_due"]           = df["act_due_m12"] - df["act_due_m1"]
+    df["months_ever_due"]     = (df[due_cols] > 0).sum(axis=1).astype(int)
+    df["months_coll_2plus"]   = (df[cs_cols] >= 2).sum(axis=1).astype(int)
     df["paid_fraction_at_obs"] = (
-        df["act_paid_installments_m3"] / df["n_installments"]
+        df["act_paid_installments_m12"] / df["n_installments"]
     )
     return df
 
@@ -275,23 +292,21 @@ def compute_aggregates(df: pd.DataFrame) -> pd.DataFrame:
 def build_target(tx: pd.DataFrame, aids_df: pd.DataFrame) -> pd.DataFrame:
     """Assign default_flag_12m ∈ {1, 0, NaN}.
 
-    Target window: months 7-18 after origination (offsets 6-17 from fin_period).
+    Target window: months 13-24 after origination (offsets 12-23 from fin_period).
     - 1  : WRITE_OFF (coll_status==8) found in window.
     - 0  : No WRITE_OFF AND target window fully covered by simulation.
-    - NaN: Censored (simulation ended before fin_period+17).
+    - NaN: Censored (simulation ended before fin_period+23).
     """
     log("Step 6: building 12-month default target")
     sim_last_period = int(tx["period"].max())
     sim_last_month  = to_month_num(sim_last_period)
     log(f"  simulation last period: {sim_last_period}")
 
-    # Per-aid target-window end month
     aids_df = aids_df.copy()
     aids_df["_fin_month"]        = to_month_num(aids_df["fin_period"])
-    aids_df["_target_end_month"] = aids_df["_fin_month"] + 14
+    aids_df["_target_end_month"] = aids_df["_fin_month"] + 23
     aids_df["_is_covered"]       = aids_df["_target_end_month"] <= sim_last_month
 
-    # Transactions in target window for eligible aids
     tx_e = tx[tx["aid"].isin(aids_df["aid"])].copy()
     tx_e = tx_e.merge(aids_df[["aid", "_fin_month"]], on="aid", how="left")
     tx_e["_per_month"] = to_month_num(tx_e["period"])
@@ -299,19 +314,19 @@ def build_target(tx: pd.DataFrame, aids_df: pd.DataFrame) -> pd.DataFrame:
 
     wo_in_window = set(
         tx_e.loc[
-            (tx_e["coll_status"] == 8) & tx_e["_offset"].between(3, 14), "aid"
+            (tx_e["coll_status"] == 8) & tx_e["_offset"].between(12, 23), "aid"
         ].unique()
     )
-    log(f"  WRITE_OFFs in target window (months 4-15): {len(wo_in_window):,}")
+    log(f"  WRITE_OFFs in target window (months 13-24): {len(wo_in_window):,}")
 
     aids_df["default_flag_12m"] = pd.array([pd.NA] * len(aids_df), dtype="Int64")
     aids_df.loc[aids_df["aid"].isin(wo_in_window), "default_flag_12m"] = 1
     no_wo_covered = ~aids_df["aid"].isin(wo_in_window) & aids_df["_is_covered"]
     aids_df.loc[no_wo_covered, "default_flag_12m"] = 0
 
-    n1   = int((aids_df["default_flag_12m"] == 1).sum())
-    n0   = int((aids_df["default_flag_12m"] == 0).sum())
-    nna  = int(aids_df["default_flag_12m"].isna().sum())
+    n1  = int((aids_df["default_flag_12m"] == 1).sum())
+    n0  = int((aids_df["default_flag_12m"] == 0).sum())
+    nna = int(aids_df["default_flag_12m"].isna().sum())
     log(f"  default=1: {n1:,} | default=0: {n0:,} | censored (NaN): {nna:,}")
 
     return aids_df[["aid", "default_flag_12m"]]
@@ -323,7 +338,7 @@ def build_target(tx: pd.DataFrame, aids_df: pd.DataFrame) -> pd.DataFrame:
 
 def add_obs_and_split(df: pd.DataFrame) -> pd.DataFrame:
     """Add observation_status ∈ {defaulted, closed, censored},
-    split ∈ {train, oot}, and obs_period = fin_period + 6 months."""
+    split ∈ {train, oot}, and obs_period = fin_period + 12 months."""
     log("Step 7: adding observation_status, split, obs_period")
 
     obs = pd.Series("censored", index=df.index, dtype="object")
@@ -334,8 +349,49 @@ def add_obs_and_split(df: pd.DataFrame) -> pd.DataFrame:
 
     df["split"] = obs.map({"defaulted": "train", "closed": "train", "censored": "oot"})
 
-    df["obs_period"] = yyyymm_add_series(df["fin_period"], 3).astype(int)
+    df["obs_period"] = yyyymm_add_series(df["fin_period"], 12).astype(int)
     return df
+
+
+# ---------------------------------------------------------------------------
+# Step 7b — summary_abt rolling stats at obs_period
+# ---------------------------------------------------------------------------
+
+def load_summary_abt_stats(data_dir: Path, obs_periods: list[int]) -> pd.DataFrame:
+    """Read summary_abt_{obs_period}.csv for each unique obs_period and extract
+    rolling aggregate columns (agr6_*, ags6_*, agr12_*, ags12_*).
+
+    NaN values in ags6_*/ags12_* are retained — rows are never dropped.
+    Returns DataFrame with columns: aid + all matched rolling-stat columns.
+    """
+    log("Step 7b: loading summary_abt rolling stats at obs_period")
+    frames: list[pd.DataFrame] = []
+    missing_periods: list[int] = []
+
+    for period in sorted(set(obs_periods)):
+        fpath = data_dir / f"summary_abt_{period}.csv"
+        if not fpath.exists():
+            log(f"  WARNING: {fpath.name} not found — skipping period {period}")
+            missing_periods.append(period)
+            continue
+        raw = pd.read_csv(fpath)
+        agg_cols = [c for c in raw.columns if c.startswith(SUMMARY_PREFIXES)]
+        frames.append(raw[["aid"] + agg_cols])
+        log(f"  {fpath.name}: {len(raw):,} rows, {len(agg_cols)} rolling-stat cols")
+
+    if not frames:
+        raise FileNotFoundError(
+            f"No summary_abt_*.csv found for any obs_period in: {sorted(set(obs_periods))}"
+        )
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined.drop_duplicates(subset=["aid"], keep="first")
+    log(f"  combined: {len(combined):,} unique aids, {len(combined.columns) - 1} stat cols")
+
+    if missing_periods:
+        log(f"  WARNING: {len(missing_periods)} obs_period(s) had no file: {missing_periods}")
+
+    return combined
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +406,6 @@ def build_report(
 ) -> str:
     train     = df[df["split"] == "train"]
     oot       = df[df["split"] == "oot"]
-    defaulted = train[train["default_flag_12m"] == 1]
 
     dr = drop_summary.iloc[0]
 
@@ -406,15 +461,20 @@ def build_report(
     feature_cols = [c for c in df.columns if c not in non_feature_cols]
     lines.append("Feature count")
     lines.append("-" * 60)
-    lines.append(f"  Total columns      : {len(df.columns)}")
-    lines.append(f"  IDs                : {len(ID_COLS)}")
-    lines.append(f"  Target             : {len(TARGET_COL)}")
-    lines.append(f"  Meta               : {len(META_COLS)}")
-    lines.append(f"  Feature columns    : {len(feature_cols)}")
-    lines.append(f"    Origination      : {len(APP_COLS) + len(ORIG_COLS)}")
-    lines.append(f"    Behavioral (9×3) : {len(BEHAV_FLAT)}")
-    lines.append(f"    Customer   (8×3) : {len(CUS_FLAT)}")
-    lines.append(f"    Aggregates       : {len(AGG_COLS)}")
+    lines.append(f"  Total columns         : {len(df.columns)}")
+    lines.append(f"  IDs                   : {len(ID_COLS)}")
+    lines.append(f"  Target                : {len(TARGET_COL)}")
+    lines.append(f"  Meta                  : {len(META_COLS)}")
+    lines.append(f"  Feature columns       : {len(feature_cols)}")
+    lines.append(f"    Origination         : {len(APP_COLS) + len(ORIG_COLS)}")
+    lines.append(f"    Behavioral (9×12)   : {len(BEHAV_FLAT)}")
+    lines.append(f"    Customer   (8×12)   : {len(CUS_FLAT)}")
+    lines.append(f"    Aggregates          : {len(AGG_COLS)}")
+    lines.append(f"    Summary_abt stats   : {len(SUMMARY_AGG_COLS)}")
+    lines.append(f"      agr6_  (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('agr6_'))}")
+    lines.append(f"      ags6_  (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('ags6_'))}")
+    lines.append(f"      agr12_ (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('agr12_'))}")
+    lines.append(f"      ags12_ (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('ags12_'))}")
     lines.append("")
 
     # --- Null counts ---
@@ -422,26 +482,42 @@ def build_report(
     lines.append("-" * 60)
     nulls = df.isna().sum()
     groups = {
-        "Origination": APP_COLS + ORIG_COLS,
-        "Behavioral":  BEHAV_FLAT,
-        "Customer":    CUS_FLAT,
-        "Aggregates":  AGG_COLS,
-        "Target":      TARGET_COL,
-        "Meta":        META_COLS,
+        "Origination":  APP_COLS + ORIG_COLS,
+        "Behavioral":   BEHAV_FLAT,
+        "Customer":     CUS_FLAT,
+        "Aggregates":   AGG_COLS,
+        "Summary_abt":  SUMMARY_AGG_COLS,
+        "Target":       TARGET_COL,
+        "Meta":         META_COLS,
     }
-    unexpected = []
+    unexpected: list[str] = []
     for grp, cols in groups.items():
         present = [c for c in cols if c in df.columns]
         n_nulls = int(nulls[present].sum())
-        exp = len(oot) if grp == "Target" else 0
         if grp == "Target":
-            status = f"(expected {len(oot):,})"
+            status = f"(expected {len(oot):,} for censored rows)"
+        elif grp == "Summary_abt":
+            # NaN in ags6_*/ags12_* is expected for short-history accounts
+            if n_nulls > 0:
+                status = f"(expected — short-history aids have NaN ags6_/ags12_)"
+            else:
+                status = "OK"
         elif n_nulls == 0:
             status = "OK"
         else:
             status = f"WARN — {n_nulls:,} unexpected"
             unexpected.append(grp)
         lines.append(f"  {grp:<15}: {n_nulls:>6,} nulls  {status}")
+
+    # Per-prefix null breakdown for summary_abt
+    lines.append("")
+    lines.append("  Summary_abt null breakdown by prefix:")
+    for pfx in SUMMARY_PREFIXES:
+        pfx_cols  = [c for c in SUMMARY_AGG_COLS if c.startswith(pfx)]
+        pfx_nulls = int(nulls[[c for c in pfx_cols if c in df.columns]].sum())
+        lines.append(f"    {pfx:<8}: {pfx_nulls:>6,} nulls")
+
+    lines.append("")
     if not unexpected:
         lines.append("  No unexpected nulls")
     lines.append("")
@@ -498,7 +574,7 @@ def main() -> int:
     # 3. Eligibility
     eligible, drop_summary = compute_eligibility(abt, orig, tx)
 
-    # 4. Flatten behavioral
+    # 4. Flatten behavioral (months 1-12)
     behav_wide = flatten_behavioral(abt, eligible)
 
     # 5. Join origination + behavioral, compute aggregates
@@ -507,18 +583,24 @@ def main() -> int:
     log(f"Joined origination + behavioral: {df.shape}")
     df = compute_aggregates(df)
 
-    # 6. Target
+    # 6. Target (months 13-24)
     target_df = build_target(tx, df[["aid", "fin_period"]])
     df = df.merge(target_df, on="aid", how="left")
 
     # 7. Obs status, split, obs_period
     df = add_obs_and_split(df)
 
+    # 7b. summary_abt rolling stats at obs_period (left join — NaN retained)
+    obs_periods = df["obs_period"].dropna().astype(int).unique().tolist()
+    summary_stats = load_summary_abt_stats(data_dir, obs_periods)
+    df = df.merge(summary_stats, on="aid", how="left")
+    log(f"After summary_abt join: {df.shape}")
+
     # 8. Final column selection
     log("Step 8: selecting final columns")
     missing = [c for c in FINAL_COLS if c not in df.columns]
     if missing:
-        raise KeyError(f"Expected columns missing: {missing}")
+        raise KeyError(f"Expected columns missing from DataFrame: {missing}")
     df_final = df[FINAL_COLS].copy()
 
     csv_path    = output_dir / "thesis_wide_abt.csv"
