@@ -38,7 +38,7 @@ def main():
     rl_debt_collection.run(
         data_path=RUN_DATA_PATH,
         end_date=20290501,
-        new_clients_count=50,
+        new_clients_count=500,
         choose_actions_func=choose_actions,
         simulate_reactions_func=simulate_reactions,
         start_date=20240501,
