@@ -78,3 +78,40 @@ Schema: 36 columns, in order:
   34. observation_status
   35. split
   36. period_terminal
+
+Enrichment -- profit columns
+------------------------------------------------------------
+  Rate assumption (base case)    : r = 0.10 (annual net interest margin)
+  Sensitivity rates              : r = ['0.05', '0.08', '0.10', '0.12', '0.15']
+
+  Step 1 -- lgd null fix:
+    lgd nulls before : 0
+    lgd nulls after  : 0  (0 = fixed)
+
+  Step 2 -- profit columns added:
+    profit_r5             (r=0.05)
+    profit_r8             (r=0.08)
+    profit_r10            (r=0.10)
+    profit_r12            (r=0.12)
+    profit_r15            (r=0.15)
+    profit_if_approved  = profit_r10 (base case alias)
+    OOT rows (null)     : 38,239
+
+  Train-set summary (default_flag known):
+    n_train              : 53,061
+    n_defaulted          : 3,522
+    n_non-defaulted      : 49,539
+
+    Mean profit_if_approved (all train)   :    41.1148
+    Mean profit_if_approved (defaulted)   : -4565.5403
+    Mean profit_if_approved (non-default) :   368.6273
+
+  Sensitivity -- mean profit on train:
+    r=0.05  profit_r5           :  -130.9647
+    r=0.08  profit_r8           :   -27.7170
+    r=0.10  profit_r10          :    41.1148
+    r=0.12  profit_r12          :   109.9467
+    r=0.15  profit_r15          :   213.1944
+
+  Breakeven rate (mean profit = 0): r* = 0.0881 (8.81%)
+  Note: at base case r=0.10, portfolio is profitable but close to breakeven.
