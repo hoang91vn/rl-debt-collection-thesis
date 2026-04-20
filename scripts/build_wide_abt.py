@@ -25,8 +25,8 @@ import pandas as pd
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_DATA_DIR  = Path("examples/thesis_baseline/runs/thesis_baseline")
-DEFAULT_OUTPUT_DIR = Path("artifacts/thesis_wide_abt_12m")
+DEFAULT_DATA_DIR   = Path("examples/thesis_baseline/runs/thesis_baseline")
+DEFAULT_OUTPUT_DIR = Path("artifacts/thesis_wide_abt_12m_500c_clean")
 
 ID_COLS = ["aid", "cid", "fin_period"]
 
@@ -86,14 +86,14 @@ AGG_COLS = [
 # ags6_*/ags12_* may be NaN for short-history accounts — rows are kept as-is.
 SUMMARY_PREFIXES = ("agr6_", "ags6_", "agr12_", "ags12_")
 _SUMMARY_SUFFIXES = [
-    "Mean_Due",      "Max_Due",      "Min_Due",
-    "Mean_Days",     "Max_Days",     "Min_Days",
-    "Mean_CMax_Days","Max_CMax_Days","Min_CMax_Days",
-    "Mean_CMax_Due", "Max_CMax_Due", "Min_CMax_Due",
+    "Mean_Due",       "Max_Due",       "Min_Due",
+    "Mean_Days",      "Max_Days",      "Min_Days",
+    "Mean_CMax_Days", "Max_CMax_Days", "Min_CMax_Days",
+    "Mean_CMax_Due",  "Max_CMax_Due",  "Min_CMax_Due",
 ]
 SUMMARY_AGG_COLS = [
     f"{p}{s}" for p in SUMMARY_PREFIXES for s in _SUMMARY_SUFFIXES
-]  # 4 × 12 = 48 columns
+]  # 4 x 12 = 48 columns
 
 TARGET_COL = ["default_flag_12m"]
 META_COLS  = ["observation_status", "split", "obs_period"]
@@ -110,6 +110,52 @@ FINAL_COLS = (
     + META_COLS
 )
 
+# ---------------------------------------------------------------------------
+# Cleaning constants (Step 8 — applied after FINAL_COLS selection)
+# ---------------------------------------------------------------------------
+
+# 8A: Constant columns — zero variance, all single-loan simulator artifacts
+DROP_CONSTANT: list[str] = (
+    # Origination-month constants: loan just started, nothing due/paid/utilised (8)
+    ["act_due_m1", "act_paid_installments_m1", "act_utl_m1",
+     "act_dueutl_m1", "act_dueinc_m1", "act_days_m1",
+     "coll_status_m1", "act_cus_seniority_m1"]
+    # Deterministic counter 1,2,...,12 — every account is its own first loan (12)
+    + [f"act_cus_n_loans_hist_m{m}" for m in range(1, 13)]
+    # Always 0 — no prior charge-offs in single-loan simulator (12)
+    + [f"act_cus_n_statC_m{m}" for m in range(1, 13)]
+    # Always 0 — no prior restructurings in single-loan simulator (12)
+    + [f"act_cus_n_statB_m{m}" for m in range(1, 13)]
+    # Deterministic active-loans counter mirrors n_loans_hist (12)
+    + [f"act_cus_n_loans_act_m{m}" for m in range(1, 13)]
+    # Always 0 at origination (1)
+    + ["act_cus_dueutl_m1"]
+    # Negative seniority constants m7..m12: -6,-7,...,-11 for all rows (6)
+    + [f"act_cus_seniority_m{m}" for m in range(7, 13)]
+)  # total: 8 + 12*4 + 1 + 6 = 63
+
+# 8B: Sparse / near-zero summary_abt columns
+DROP_SPARSE: list[str] = (
+    # ags6_*  — 83.9% NaN (need 6+ months pre-obs history per account)
+    [f"ags6_{s}"  for s in _SUMMARY_SUFFIXES]
+    # ags12_* — 96.2% NaN (need 12+ months pre-obs history per account)
+    + [f"ags12_{s}" for s in _SUMMARY_SUFFIXES]
+    # 99.4% zeros — minimum rolling due almost always 0
+    + ["agr12_Min_Due", "agr12_Min_CMax_Due"]
+)  # total: 12 + 12 + 2 = 26
+
+# 8C: Winsorise at 99th percentile (train-fit, applied to all)
+WINSOR_COLS: list[str] = [f"act_dueinc_m{m}" for m in range(4, 13)]  # 9 cols
+
+# 8D: Impute NaN with train median
+# agr6_ x12  +  agr12_ x10  (excl. agr12_Min_Due, agr12_Min_CMax_Due dropped in 8B)
+_DROPPED_AGR12 = {"agr12_Min_Due", "agr12_Min_CMax_Due"}
+AGR_IMPUTE_COLS: list[str] = (
+    [f"agr6_{s}"  for s in _SUMMARY_SUFFIXES]
+    + [f"agr12_{s}" for s in _SUMMARY_SUFFIXES
+       if f"agr12_{s}" not in _DROPPED_AGR12]
+)  # 12 + 10 = 22
+
 
 # ---------------------------------------------------------------------------
 # Utilities
@@ -125,7 +171,7 @@ def to_month_num(x: pd.Series | int) -> pd.Series | int:
 
 
 def yyyymm_add_series(period: pd.Series, months: int) -> pd.Series:
-    """Vectorised YYYYMM + N months → YYYYMM.  Handles year roll-over."""
+    """Vectorised YYYYMM + N months -> YYYYMM.  Handles year roll-over."""
     total = (period // 100) * 12 + (period % 100) - 1 + months
     return (total // 12) * 100 + (total % 12) + 1
 
@@ -212,7 +258,7 @@ def compute_eligibility(
     counts = abt.groupby("aid")["_offset"].nunique()
     pass_a = set(counts[counts == 12].index)
     fail_a = set(orig["aid"]) - pass_a
-    log(f"  Check A — full 12-month history : {len(pass_a):,} pass, {len(fail_a):,} fail")
+    log(f"  Check A -- full 12-month history : {len(pass_a):,} pass, {len(fail_a):,} fail")
 
     # --- Check B: no early WRITE_OFF (at or before obs_period = offset 12) ---
     fin_period_map = orig.set_index("aid")["fin_period"]
@@ -226,7 +272,7 @@ def compute_eligibility(
         ].unique()
     )
     fail_b = early_wo_aids
-    log(f"  Check B — early WRITE_OFF       : {len(fail_b):,} fail")
+    log(f"  Check B -- early WRITE_OFF       : {len(fail_b):,} fail")
 
     eligible = pass_a - fail_b
     log(f"  Eligible : {len(eligible):,} / {total:,} total aids")
@@ -260,7 +306,7 @@ def flatten_behavioral(abt: pd.DataFrame, eligible: set[str]) -> pd.DataFrame:
         pivot_frames.append(piv)
 
     wide = pd.concat(pivot_frames, axis=1).reset_index()
-    log(f"  behavioral pivot: {wide.shape[0]:,} aids × {wide.shape[1] - 1} feature columns")
+    log(f"  behavioral pivot: {wide.shape[0]:,} aids x {wide.shape[1] - 1} feature columns")
     return wide
 
 
@@ -271,14 +317,14 @@ def flatten_behavioral(abt: pd.DataFrame, eligible: set[str]) -> pd.DataFrame:
 def compute_aggregates(df: pd.DataFrame) -> pd.DataFrame:
     """Compute 6 aggregate features from the flattened behavioral columns."""
     log("Step 5: computing aggregate features")
-    due_cols = [f"act_due_m{m}"          for m in MONTHS]
-    cs_cols  = [f"coll_status_m{m}"      for m in MONTHS]
+    due_cols = [f"act_due_m{m}"     for m in MONTHS]
+    cs_cols  = [f"coll_status_m{m}" for m in MONTHS]
 
-    df["max_due"]             = df[due_cols].max(axis=1)
-    df["max_coll_status"]     = df[cs_cols].max(axis=1)
-    df["trend_due"]           = df["act_due_m12"] - df["act_due_m1"]
-    df["months_ever_due"]     = (df[due_cols] > 0).sum(axis=1).astype(int)
-    df["months_coll_2plus"]   = (df[cs_cols] >= 2).sum(axis=1).astype(int)
+    df["max_due"]              = df[due_cols].max(axis=1)
+    df["max_coll_status"]      = df[cs_cols].max(axis=1)
+    df["trend_due"]            = df["act_due_m12"] - df["act_due_m1"]
+    df["months_ever_due"]      = (df[due_cols] > 0).sum(axis=1).astype(int)
+    df["months_coll_2plus"]    = (df[cs_cols] >= 2).sum(axis=1).astype(int)
     df["paid_fraction_at_obs"] = (
         df["act_paid_installments_m12"] / df["n_installments"]
     )
@@ -290,7 +336,7 @@ def compute_aggregates(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def build_target(tx: pd.DataFrame, aids_df: pd.DataFrame) -> pd.DataFrame:
-    """Assign default_flag_12m ∈ {1, 0, NaN}.
+    """Assign default_flag_12m in {1, 0, NaN}.
 
     Target window: months 13-24 after origination (offsets 12-23 from fin_period).
     - 1  : WRITE_OFF (coll_status==8) found in window.
@@ -337,8 +383,8 @@ def build_target(tx: pd.DataFrame, aids_df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def add_obs_and_split(df: pd.DataFrame) -> pd.DataFrame:
-    """Add observation_status ∈ {defaulted, closed, censored},
-    split ∈ {train, oot}, and obs_period = fin_period + 12 months."""
+    """Add observation_status in {defaulted, closed, censored},
+    split in {train, oot}, and obs_period = fin_period + 12 months."""
     log("Step 7: adding observation_status, split, obs_period")
 
     obs = pd.Series("censored", index=df.index, dtype="object")
@@ -371,7 +417,7 @@ def load_summary_abt_stats(data_dir: Path, obs_periods: list[int]) -> pd.DataFra
     for period in sorted(set(obs_periods)):
         fpath = data_dir / f"summary_abt_{period}.csv"
         if not fpath.exists():
-            log(f"  WARNING: {fpath.name} not found — skipping period {period}")
+            log(f"  WARNING: {fpath.name} not found -- skipping period {period}")
             missing_periods.append(period)
             continue
         raw = pd.read_csv(fpath)
@@ -395,6 +441,75 @@ def load_summary_abt_stats(data_dir: Path, obs_periods: list[int]) -> pd.DataFra
 
 
 # ---------------------------------------------------------------------------
+# Step 8 — Data cleaning
+# ---------------------------------------------------------------------------
+
+def clean_dataset(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    """Apply post-join cleaning steps 8A-8D.
+
+    A) Drop 63 constant columns (single-loan simulator artifacts).
+    B) Drop 26 sparse/near-zero summary_abt columns.
+    C) Winsorise act_dueinc_m4..m12 at 99th pct — fit on train, apply to all.
+    D) Impute 22 agr6_*/agr12_* NaN with train median — fit on train, apply to all.
+
+    Returns (df_clean, clean_report) where clean_report contains drop lists,
+    winsorise caps, and imputation medians for the report.
+    """
+    log("Step 8: data cleaning (drop / winsorise / impute)")
+    train_mask = df["split"] == "train"
+    report: dict = {}
+
+    # 8A: Drop constant columns
+    present_const = [c for c in DROP_CONSTANT if c in df.columns]
+    absent_const  = [c for c in DROP_CONSTANT if c not in df.columns]
+    df = df.drop(columns=present_const)
+    report["dropped_constant"]        = present_const
+    report["dropped_constant_absent"] = absent_const
+    log(f"  8A: dropped {len(present_const)} constant cols"
+        + (f" ({len(absent_const)} already absent)" if absent_const else ""))
+
+    # 8B: Drop sparse / near-zero summary_abt columns
+    present_sparse = [c for c in DROP_SPARSE if c in df.columns]
+    absent_sparse  = [c for c in DROP_SPARSE if c not in df.columns]
+    df = df.drop(columns=present_sparse)
+    report["dropped_sparse"]        = present_sparse
+    report["dropped_sparse_absent"] = absent_sparse
+    log(f"  8B: dropped {len(present_sparse)} sparse cols"
+        + (f" ({len(absent_sparse)} already absent)" if absent_sparse else ""))
+
+    total_dropped = len(present_const) + len(present_sparse)
+    log(f"  8A+8B total dropped: {total_dropped} cols")
+
+    # 8C: Winsorise act_dueinc_m4..m12 at 99th pct (train-fit)
+    winsor_caps: dict[str, float] = {}
+    for col in WINSOR_COLS:
+        if col not in df.columns:
+            continue
+        cap = float(df.loc[train_mask, col].quantile(0.99))
+        winsor_caps[col] = cap
+        df[col] = df[col].clip(upper=cap)
+    report["winsor_caps"] = winsor_caps
+    log(f"  8C: winsorised {len(winsor_caps)} act_dueinc cols at 99th pct (train-fit)")
+
+    # 8D: Impute agr6_*/agr12_* NaN with train median
+    impute_medians: dict[str, float] = {}
+    for col in AGR_IMPUTE_COLS:
+        if col not in df.columns:
+            continue
+        n_null = int(df[col].isna().sum())
+        if n_null == 0:
+            continue
+        median = float(df.loc[train_mask, col].median())
+        impute_medians[col] = median
+        df[col] = df[col].fillna(median)
+    report["impute_medians"] = impute_medians
+    log(f"  8D: imputed {len(impute_medians)} agr cols with train median")
+
+    log(f"  After cleaning: {df.shape[0]:,} rows x {df.shape[1]} cols")
+    return df, report
+
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 
@@ -403,11 +518,11 @@ def build_report(
     drop_summary: pd.DataFrame,
     run_dir: Path,
     csv_path: Path,
+    clean_report: dict | None = None,
 ) -> str:
-    train     = df[df["split"] == "train"]
-    oot       = df[df["split"] == "oot"]
-
-    dr = drop_summary.iloc[0]
+    train = df[df["split"] == "train"]
+    oot   = df[df["split"] == "oot"]
+    dr    = drop_summary.iloc[0]
 
     lines: list[str] = []
     lines.append("thesis_wide_abt report")
@@ -420,10 +535,31 @@ def build_report(
     lines.append("Eligibility filter")
     lines.append("-" * 60)
     lines.append(f"  Total aids (origination)           : {int(dr['total_aids']):,}")
-    lines.append(f"  Dropped — insufficient_history (A) : {int(dr['fail_a_insufficient_history']):,}")
-    lines.append(f"  Dropped — early_default (B)        : {int(dr['fail_b_early_default']):,}")
+    lines.append(f"  Dropped -- insufficient_history (A) : {int(dr['fail_a_insufficient_history']):,}")
+    lines.append(f"  Dropped -- early_default (B)        : {int(dr['fail_b_early_default']):,}")
     lines.append(f"  Eligible (rows in wide ABT)        : {int(dr['eligible']):,}")
     lines.append("")
+
+    # --- Cleaning summary ---
+    if clean_report:
+        lines.append("Cleaning summary (Step 8)")
+        lines.append("-" * 60)
+        n_const  = len(clean_report.get("dropped_constant", []))
+        n_sparse = len(clean_report.get("dropped_sparse", []))
+        lines.append(f"  8A dropped (constant cols)         : {n_const}")
+        lines.append(f"  8B dropped (sparse/near-zero cols) : {n_sparse}")
+        lines.append(f"  Total columns dropped              : {n_const + n_sparse}")
+        lines.append("")
+
+        lines.append("  8C Winsorise caps (99th pct, train-fit):")
+        for col, cap in clean_report.get("winsor_caps", {}).items():
+            lines.append(f"    {col:<30} cap = {cap:.6g}")
+        lines.append("")
+
+        lines.append("  8D Imputation medians (train-fit):")
+        for col, med in clean_report.get("impute_medians", {}).items():
+            lines.append(f"    {col:<40} median = {med:.6g}")
+        lines.append("")
 
     # --- Split ---
     lines.append("Split counts")
@@ -443,7 +579,7 @@ def build_report(
     lines.append("")
 
     # --- Target ---
-    lines.append("Target — default_flag_12m (train set)")
+    lines.append("Target -- default_flag_12m (train set)")
     lines.append("-" * 60)
     if len(train) > 0:
         n1   = int((train["default_flag_12m"] == 1).sum())
@@ -456,66 +592,66 @@ def build_report(
         lines.append("  WARNING: train set empty")
     lines.append("")
 
-    # --- Feature count ---
-    non_feature_cols = set(ID_COLS + TARGET_COL + META_COLS)
-    feature_cols = [c for c in df.columns if c not in non_feature_cols]
+    # --- Feature count (dynamic — reflects actual columns after cleaning) ---
+    non_feature = set(ID_COLS + TARGET_COL + META_COLS)
+    feature_cols = [c for c in df.columns if c not in non_feature]
+
+    def _present(lst: list[str]) -> list[str]:
+        return [c for c in lst if c in df.columns]
+
+    orig_present  = _present(APP_COLS + ORIG_COLS)
+    behav_present = _present(BEHAV_FLAT)
+    cus_present   = _present(CUS_FLAT)
+    agg_present   = _present(AGG_COLS)
+    summ_present  = _present(SUMMARY_AGG_COLS)
+
     lines.append("Feature count")
     lines.append("-" * 60)
     lines.append(f"  Total columns         : {len(df.columns)}")
-    lines.append(f"  IDs                   : {len(ID_COLS)}")
-    lines.append(f"  Target                : {len(TARGET_COL)}")
-    lines.append(f"  Meta                  : {len(META_COLS)}")
+    lines.append(f"  IDs                   : {len(_present(ID_COLS))}")
+    lines.append(f"  Target                : {len(_present(TARGET_COL))}")
+    lines.append(f"  Meta                  : {len(_present(META_COLS))}")
     lines.append(f"  Feature columns       : {len(feature_cols)}")
-    lines.append(f"    Origination         : {len(APP_COLS) + len(ORIG_COLS)}")
-    lines.append(f"    Behavioral (9×12)   : {len(BEHAV_FLAT)}")
-    lines.append(f"    Customer   (8×12)   : {len(CUS_FLAT)}")
-    lines.append(f"    Aggregates          : {len(AGG_COLS)}")
-    lines.append(f"    Summary_abt stats   : {len(SUMMARY_AGG_COLS)}")
-    lines.append(f"      agr6_  (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('agr6_'))}")
-    lines.append(f"      ags6_  (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('ags6_'))}")
-    lines.append(f"      agr12_ (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('agr12_'))}")
-    lines.append(f"      ags12_ (×12)      : {sum(1 for c in SUMMARY_AGG_COLS if c.startswith('ags12_'))}")
+    lines.append(f"    Origination         : {len(orig_present)}")
+    lines.append(f"    Behavioral          : {len(behav_present)}")
+    lines.append(f"    Customer            : {len(cus_present)}")
+    lines.append(f"    Aggregates          : {len(agg_present)}")
+    lines.append(f"    Summary_abt stats   : {len(summ_present)}")
+    for pfx in SUMMARY_PREFIXES:
+        n = sum(1 for c in summ_present if c.startswith(pfx))
+        if n:
+            lines.append(f"      {pfx:<10}      : {n}")
     lines.append("")
 
     # --- Null counts ---
-    lines.append("Data quality — null counts per column group")
+    lines.append("Data quality -- null counts per column group")
     lines.append("-" * 60)
     nulls = df.isna().sum()
     groups = {
-        "Origination":  APP_COLS + ORIG_COLS,
-        "Behavioral":   BEHAV_FLAT,
-        "Customer":     CUS_FLAT,
-        "Aggregates":   AGG_COLS,
-        "Summary_abt":  SUMMARY_AGG_COLS,
-        "Target":       TARGET_COL,
-        "Meta":         META_COLS,
+        "Origination": APP_COLS + ORIG_COLS,
+        "Behavioral":  BEHAV_FLAT,
+        "Customer":    CUS_FLAT,
+        "Aggregates":  AGG_COLS,
+        "Summary_abt": SUMMARY_AGG_COLS,
+        "Target":      TARGET_COL,
+        "Meta":        META_COLS,
     }
     unexpected: list[str] = []
     for grp, cols in groups.items():
         present = [c for c in cols if c in df.columns]
+        if not present:
+            continue
         n_nulls = int(nulls[present].sum())
         if grp == "Target":
             status = f"(expected {len(oot):,} for censored rows)"
-        elif grp == "Summary_abt":
-            # NaN in ags6_*/ags12_* is expected for short-history accounts
-            if n_nulls > 0:
-                status = f"(expected — short-history aids have NaN ags6_/ags12_)"
-            else:
-                status = "OK"
+        elif grp == "Summary_abt" and n_nulls > 0:
+            status = "(expected -- agr6_/agr12_ imputed; ags dropped)"
         elif n_nulls == 0:
             status = "OK"
         else:
-            status = f"WARN — {n_nulls:,} unexpected"
+            status = f"WARN -- {n_nulls:,} unexpected"
             unexpected.append(grp)
         lines.append(f"  {grp:<15}: {n_nulls:>6,} nulls  {status}")
-
-    # Per-prefix null breakdown for summary_abt
-    lines.append("")
-    lines.append("  Summary_abt null breakdown by prefix:")
-    for pfx in SUMMARY_PREFIXES:
-        pfx_cols  = [c for c in SUMMARY_AGG_COLS if c.startswith(pfx)]
-        pfx_nulls = int(nulls[[c for c in pfx_cols if c in df.columns]].sum())
-        lines.append(f"    {pfx:<8}: {pfx_nulls:>6,} nulls")
 
     lines.append("")
     if not unexpected:
@@ -590,26 +726,29 @@ def main() -> int:
     # 7. Obs status, split, obs_period
     df = add_obs_and_split(df)
 
-    # 7b. summary_abt rolling stats at obs_period (left join — NaN retained)
+    # 7b. summary_abt rolling stats at obs_period (left join -- NaN retained)
     obs_periods = df["obs_period"].dropna().astype(int).unique().tolist()
     summary_stats = load_summary_abt_stats(data_dir, obs_periods)
     df = df.merge(summary_stats, on="aid", how="left")
     log(f"After summary_abt join: {df.shape}")
 
-    # 8. Final column selection
-    log("Step 8: selecting final columns")
+    # 8a. Final column selection
+    log("Step 8a: selecting final columns")
     missing = [c for c in FINAL_COLS if c not in df.columns]
     if missing:
         raise KeyError(f"Expected columns missing from DataFrame: {missing}")
     df_final = df[FINAL_COLS].copy()
 
+    # 8b. Data cleaning (drop / winsorise / impute)
+    df_final, clean_report = clean_dataset(df_final)
+
     csv_path    = output_dir / "thesis_wide_abt.csv"
     report_path = output_dir / "thesis_wide_abt_report.txt"
 
-    log(f"Writing {csv_path}  ({len(df_final):,} rows × {len(df_final.columns)} cols)")
+    log(f"Writing {csv_path}  ({len(df_final):,} rows x {len(df_final.columns)} cols)")
     df_final.to_csv(csv_path, index=False)
 
-    report = build_report(df_final, drop_summary, data_dir, csv_path)
+    report = build_report(df_final, drop_summary, data_dir, csv_path, clean_report)
     log(f"Writing {report_path}")
     report_path.write_text(report, encoding="utf-8")
     log("Done")
