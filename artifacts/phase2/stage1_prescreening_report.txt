@@ -1,0 +1,412 @@
+Phase 2 Stage 1 -- Feature Pre-screening Report
+======================================================================
+Input ABT    : thesis_wide_abt_12m_500c_clean/thesis_wide_abt.csv
+Train rows   : 577,965
+Target       : default_flag_12m  (default rate 3.27%)
+Initial features: 185
+
+Categorical encoding note:
+  7 nominal columns were label-encoded for Gini screening only.
+  Stage 2 will apply one-hot encoding for the final model.
+  Encoded: app_nom_branch, app_nom_gender, app_nom_job_code, app_nom_marital_status, app_nom_city, app_nom_home_status, app_nom_cars
+
+======================================================================
+Step 1 -- Missing Rate Filter  (threshold: null% > 50%)
+----------------------------------------------------------------------
+  Dropped : 0
+  (no columns dropped -- all pass null filter)
+  Features remaining: 185
+
+======================================================================
+Step 2 -- Near-Zero Variance Filter  (threshold: top-value >= 95%)
+----------------------------------------------------------------------
+  Dropped : 6
+    agr6_Min_Due                                   top value=np.float64(0.0)  96.6%
+    agr6_Max_Days                                  top value=np.float64(30.0)  96.7%
+    agr6_Max_CMax_Days                             top value=np.float64(30.0)  96.7%
+    agr6_Min_CMax_Due                              top value=np.float64(0.0)  96.6%
+    agr12_Max_Days                                 top value=np.float64(30.0)  98.3%
+    agr12_Max_CMax_Days                            top value=np.float64(30.0)  98.3%
+  Features remaining: 179
+
+======================================================================
+Step 3 -- Univariate Gini Filter  (keep gini_train > 0.02)
+  70/30 train/val split (random_state=42)
+----------------------------------------------------------------------
+  Dropped : 2
+    app_spendings                                  gini_train=0.0079
+    app_income                                     gini_train=0.0051
+  Features remaining: 177
+
+======================================================================
+Step 4 -- Stability Filter  (drop if delta_gini > 0.2)
+----------------------------------------------------------------------
+  Dropped : 3
+    app_nom_branch                                 delta=0.2113  (tr=0.0676, val=0.0533)
+    agr6_Mean_CMax_Days                            delta=0.9954  (tr=0.0202, val=0.0404)
+    agr6_Mean_Days                                 delta=0.9954  (tr=0.0202, val=0.0404)
+  Features remaining: 174
+
+======================================================================
+Full Gini table -- features passing Step 3 + 4, sorted by gini_train
+----------------------------------------------------------------------
+  Feature                                        gini_tr  gini_val    delta  Status
+----------------------------------------------------------------------
+  act_due_m12                                     0.9348    0.9299   0.0053  selected
+  act_paid_installments_m12                       0.9348    0.9299   0.0053  selected
+  trend_due                                       0.9348    0.9299   0.0053  selected
+  max_due                                         0.9325    0.9263   0.0067  selected
+  paid_fraction_at_obs                            0.9163    0.9099   0.0070  selected
+  act_utl_m12                                     0.9163    0.9099   0.0070  selected
+  act_due_m11                                     0.9147    0.9049   0.0108  selected
+  act_paid_installments_m11                       0.9147    0.9049   0.0108  selected
+  act_utl_m11                                     0.8981    0.8910   0.0079  selected
+  months_ever_due                                 0.8937    0.8918   0.0022  selected
+  act_utl_m10                                     0.8866    0.8811   0.0061  selected
+  act_due_m10                                     0.8842    0.8813   0.0033  selected
+  act_paid_installments_m10                       0.8842    0.8813   0.0033  selected
+  act_utl_m9                                      0.8665    0.8608   0.0066  selected
+  act_dueinc_m12                                  0.8581    0.8542   0.0045  selected
+  act_dueutl_m12                                  0.8465    0.8413   0.0062  selected
+  act_utl_m8                                      0.8458    0.8393   0.0077  selected
+  act_dueinc_m11                                  0.8434    0.8338   0.0114  selected
+  act_due_m9                                      0.8391    0.8366   0.0030  selected
+  act_paid_installments_m9                        0.8391    0.8366   0.0030  selected
+  act_utl_m7                                      0.8339    0.8277   0.0074  selected
+  act_dueinc_m10                                  0.8203    0.8157   0.0056  selected
+  act_dueutl_m11                                  0.8179    0.8073   0.0130  selected
+  act_utl_m6                                      0.8131    0.8075   0.0069  selected
+  act_due_m8                                      0.7973    0.7915   0.0073  selected
+  act_paid_installments_m8                        0.7973    0.7915   0.0073  selected
+  act_utl_m5                                      0.7904    0.7841   0.0080  selected
+  act_utl_m4                                      0.7840    0.7778   0.0080  selected
+  act_dueinc_m9                                   0.7839    0.7812   0.0034  selected
+  act_dueutl_m10                                  0.7784    0.7747   0.0047  selected
+  act_dueinc_m8                                   0.7532    0.7473   0.0079  selected
+  act_utl_m3                                      0.7488    0.7456   0.0043  selected
+  act_due_m7                                      0.7469    0.7460   0.0012  selected
+  act_paid_installments_m7                        0.7469    0.7460   0.0012  selected
+  act_dueutl_m9                                   0.7254    0.7225   0.0039  selected
+  act_dueinc_m7                                   0.7135    0.7132   0.0004  selected
+  act_due_m6                                      0.6875    0.6886   0.0016  selected
+  act_paid_installments_m6                        0.6875    0.6886   0.0016  selected
+  act_dueutl_m8                                   0.6833    0.6778   0.0080  selected
+  loan_amount                                     0.6722    0.6696   0.0038  selected
+  app_loan_amount                                 0.6722    0.6696   0.0038  selected
+  act_dueinc_m6                                   0.6691    0.6699   0.0013  selected
+  act_due_m5                                      0.6366    0.6290   0.0119  selected
+  act_paid_installments_m5                        0.6366    0.6290   0.0119  selected
+  act_dueutl_m7                                   0.6353    0.6342   0.0017  selected
+  n_installments                                  0.6318    0.6269   0.0077  selected
+  app_n_installments                              0.6318    0.6269   0.0077  selected
+  act_dueinc_m5                                   0.6283    0.6194   0.0141  selected
+  months_coll_2plus                               0.6252    0.6228   0.0038  selected
+  act_utl_m2                                      0.6198    0.6163   0.0056  selected
+  act_days_m12                                    0.6020    0.6007   0.0022  selected
+  act_days_m11                                    0.5987    0.5971   0.0027  selected
+  act_cus_dueutl_m11                              0.5975    0.5987   0.0020  selected
+  act_cus_dueutl_m12                              0.5931    0.5947   0.0027  selected
+  act_cus_dueutl_m10                              0.5921    0.5931   0.0018  selected
+  act_cus_dueutl_m9                               0.5868    0.5881   0.0023  selected
+  act_dueutl_m6                                   0.5866    0.5890   0.0040  selected
+  agr12_Mean_CMax_Due                             0.5858    0.5948   0.0154  selected
+  agr12_Mean_Due                                  0.5858    0.5948   0.0154  selected
+  act_days_m10                                    0.5840    0.5711   0.0220  selected
+  act_cus_dueutl_m8                               0.5832    0.5841   0.0016  selected
+  agr6_Mean_CMax_Due                              0.5828    0.5920   0.0159  selected
+  agr6_Mean_Due                                   0.5828    0.5920   0.0159  selected
+  agr6_Max_Due                                    0.5782    0.5867   0.0148  selected
+  agr6_Max_CMax_Due                               0.5782    0.5867   0.0148  selected
+  agr12_Max_CMax_Due                              0.5768    0.5854   0.0149  selected
+  agr12_Max_Due                                   0.5768    0.5854   0.0149  selected
+  act_dueinc_m4                                   0.5685    0.5578   0.0187  selected
+  act_due_m4                                      0.5671    0.5583   0.0154  selected
+  act_paid_installments_m4                        0.5671    0.5583   0.0154  selected
+  act_cus_dueutl_m7                               0.5663    0.5671   0.0013  selected
+  act_cus_dueutl_m6                               0.5504    0.5496   0.0013  selected
+  act_dueutl_m5                                   0.5467    0.5396   0.0129  selected
+  act_days_m9                                     0.5370    0.5321   0.0092  selected
+  act_cus_dueutl_m5                               0.5275    0.5227   0.0090  selected
+  act_days_m8                                     0.4992    0.4955   0.0074  selected
+  act_dueutl_m4                                   0.4867    0.4794   0.0151  selected
+  act_cus_dueutl_m4                               0.4794    0.4766   0.0058  selected
+  act_dueinc_m3                                   0.4765    0.4745   0.0043  selected
+  act_due_m3                                      0.4676    0.4671   0.0012  selected
+  act_paid_installments_m3                        0.4676    0.4671   0.0012  selected
+  coll_status_m3                                  0.4522    0.4466   0.0123  selected
+  act_days_m7                                     0.4448    0.4343   0.0234  selected
+  coll_status_m4                                  0.4302    0.4302   0.0001  selected
+  act_dueinc_m2                                   0.4246    0.4234   0.0028  selected
+  act_cus_dueutl_m3                               0.4241    0.4205   0.0086  selected
+  act_loaninc_m8                                  0.4146    0.4098   0.0115  selected
+  act_loaninc_m9                                  0.4141    0.4103   0.0092  selected
+  act_loaninc_m10                                 0.4130    0.4086   0.0108  selected
+  act_loaninc_m7                                  0.4127    0.4074   0.0128  selected
+  act_loaninc_m11                                 0.4114    0.4074   0.0097  selected
+  act_loaninc_m12                                 0.4088    0.4065   0.0056  selected
+  act_loaninc_m6                                  0.4075    0.4015   0.0147  selected
+  coll_status_m2                                  0.4062    0.4068   0.0015  selected
+  act_due_m2                                      0.4062    0.4068   0.0015  selected
+  act_paid_installments_m2                        0.4062    0.4068   0.0015  selected
+  act_loaninc_m5                                  0.4045    0.3969   0.0189  selected
+  act_dueutl_m3                                   0.4041    0.4036   0.0012  selected
+  act_loaninc_m4                                  0.4003    0.3930   0.0182  selected
+  coll_status_m5                                  0.3961    0.3938   0.0058  selected
+  act_loaninc_m3                                  0.3955    0.3890   0.0164  selected
+  act_loaninc_m2                                  0.3921    0.3847   0.0186  selected
+  act_loaninc_m1                                  0.3890    0.3814   0.0194  selected
+  act_days_m6                                     0.3840    0.3804   0.0093  selected
+  act_dueutl_m2                                   0.3514    0.3516   0.0006  selected
+  act_cus_dueutl_m2                               0.3514    0.3516   0.0006  selected
+  coll_status_m6                                  0.3474    0.3453   0.0059  selected
+  act_days_m2                                     0.3439    0.3416   0.0067  selected
+  act_days_m5                                     0.3404    0.3268   0.0399  selected
+  installment                                     0.3340    0.3335   0.0015  selected
+  coll_status_m7                                  0.2985    0.2974   0.0036  selected
+  agr12_Min_Days                                  0.2922    0.3077   0.0531  selected
+  agr12_Min_CMax_Days                             0.2922    0.3077   0.0531  selected
+  act_days_m4                                     0.2850    0.2885   0.0123  selected
+  app_nom_job_code                                0.2629    0.2720   0.0346  selected
+  act_age                                         0.2526    0.2550   0.0097  selected
+  coll_status_m8                                  0.2492    0.2482   0.0041  selected
+  act_cus_utl_m12                                 0.2406    0.2358   0.0199  selected
+  act_cus_utl_m11                                 0.2406    0.2358   0.0199  selected
+  act_cus_utl_m3                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m4                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m6                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m1                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m5                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m9                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m10                                 0.2406    0.2358   0.0199  selected
+  act_cus_utl_m2                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m7                                  0.2406    0.2358   0.0199  selected
+  act_cus_utl_m8                                  0.2406    0.2358   0.0199  selected
+  coll_status_m9                                  0.2083    0.2049   0.0166  selected
+  app_number_of_children                          0.2062    0.2060   0.0011  selected
+  app_nom_marital_status                          0.1993    0.1919   0.0369  selected
+  act_days_m3                                     0.1914    0.1867   0.0246  selected
+  agr6_Min_Days                                   0.1808    0.1930   0.0678  selected
+  agr6_Min_CMax_Days                              0.1808    0.1930   0.0678  selected
+  act_cus_cc_m8                                   0.1780    0.1748   0.0179  selected
+  act_cus_cc_m9                                   0.1774    0.1748   0.0146  selected
+  act_cus_cc_m10                                  0.1760    0.1727   0.0185  selected
+  act_cus_cc_m7                                   0.1756    0.1706   0.0283  selected
+  act_cus_cc_m11                                  0.1741    0.1722   0.0110  selected
+  coll_status_m10                                 0.1726    0.1682   0.0257  selected
+  act_cus_cc_m12                                  0.1705    0.1708   0.0015  selected
+  act_cus_cc_m6                                   0.1687    0.1631   0.0329  selected
+  act_cc_m8                                       0.1668    0.1697   0.0180  selected
+  act_cc_m9                                       0.1662    0.1680   0.0110  selected
+  act_cc_m7                                       0.1651    0.1642   0.0051  selected
+  act_cc_m10                                      0.1640    0.1663   0.0141  selected
+  act_cus_cc_m5                                   0.1634    0.1555   0.0484  selected
+  act_cc_m11                                      0.1620    0.1668   0.0296  selected
+  app_nom_gender                                  0.1579    0.1567   0.0079  selected
+  act_cc_m6                                       0.1574    0.1567   0.0043  selected
+  act_cc_m12                                      0.1570    0.1645   0.0473  selected
+  act_cus_cc_m4                                   0.1557    0.1478   0.0504  selected
+  act_cc_m5                                       0.1521    0.1474   0.0310  selected
+  coll_status_m11                                 0.1516    0.1514   0.0015  selected
+  act_cus_cc_m3                                   0.1472    0.1406   0.0443  selected
+  coll_status_m12                                 0.1454    0.1397   0.0386  selected
+  act_cc_m4                                       0.1435    0.1376   0.0408  selected
+  agr12_Mean_CMax_Days                            0.1429    0.1606   0.1236  selected
+  agr12_Mean_Days                                 0.1429    0.1606   0.1236  selected
+  act_cus_cc_m2                                   0.1367    0.1312   0.0400  selected
+  act_cc_m3                                       0.1356    0.1309   0.0348  selected
+  act_cc_m2                                       0.1267    0.1234   0.0260  selected
+  act_cc_m1                                       0.1207    0.1170   0.0302  selected
+  act_cus_cc_m1                                   0.1207    0.1170   0.0302  selected
+  app_nom_city                                    0.0699    0.0727   0.0387  selected
+  app_nom_branch                                  0.0676    0.0533   0.2113  stability_drop
+  act_cus_seniority_m4                            0.0655    0.0697   0.0632  selected
+  act_cus_seniority_m5                            0.0567    0.0564   0.0060  selected
+  act_cus_seniority_m3                            0.0483    0.0480   0.0071  selected
+  app_nom_cars                                    0.0404    0.0373   0.0774  selected
+  app_nom_home_status                             0.0402    0.0344   0.1431  selected
+  max_coll_status                                 0.0357    0.0401   0.1245  selected
+  act_cus_seniority_m2                            0.0335    0.0348   0.0392  selected
+  act_cus_seniority_m6                            0.0282    0.0278   0.0129  selected
+  agr6_Mean_CMax_Days                             0.0202    0.0404   0.9954  stability_drop
+  agr6_Mean_Days                                  0.0202    0.0404   0.9954  stability_drop
+
+======================================================================
+Final selected features: 174
+----------------------------------------------------------------------
+    1. act_due_m12                                   gini_train=0.9348  gini_val=0.9299  delta=0.0053
+    2. act_paid_installments_m12                     gini_train=0.9348  gini_val=0.9299  delta=0.0053
+    3. trend_due                                     gini_train=0.9348  gini_val=0.9299  delta=0.0053
+    4. max_due                                       gini_train=0.9325  gini_val=0.9263  delta=0.0067
+    5. paid_fraction_at_obs                          gini_train=0.9163  gini_val=0.9099  delta=0.0070
+    6. act_utl_m12                                   gini_train=0.9163  gini_val=0.9099  delta=0.0070
+    7. act_due_m11                                   gini_train=0.9147  gini_val=0.9049  delta=0.0108
+    8. act_paid_installments_m11                     gini_train=0.9147  gini_val=0.9049  delta=0.0108
+    9. act_utl_m11                                   gini_train=0.8981  gini_val=0.8910  delta=0.0079
+   10. months_ever_due                               gini_train=0.8937  gini_val=0.8918  delta=0.0022
+   11. act_utl_m10                                   gini_train=0.8866  gini_val=0.8811  delta=0.0061
+   12. act_due_m10                                   gini_train=0.8842  gini_val=0.8813  delta=0.0033
+   13. act_paid_installments_m10                     gini_train=0.8842  gini_val=0.8813  delta=0.0033
+   14. act_utl_m9                                    gini_train=0.8665  gini_val=0.8608  delta=0.0066
+   15. act_dueinc_m12                                gini_train=0.8581  gini_val=0.8542  delta=0.0045
+   16. act_dueutl_m12                                gini_train=0.8465  gini_val=0.8413  delta=0.0062
+   17. act_utl_m8                                    gini_train=0.8458  gini_val=0.8393  delta=0.0077
+   18. act_dueinc_m11                                gini_train=0.8434  gini_val=0.8338  delta=0.0114
+   19. act_due_m9                                    gini_train=0.8391  gini_val=0.8366  delta=0.0030
+   20. act_paid_installments_m9                      gini_train=0.8391  gini_val=0.8366  delta=0.0030
+   21. act_utl_m7                                    gini_train=0.8339  gini_val=0.8277  delta=0.0074
+   22. act_dueinc_m10                                gini_train=0.8203  gini_val=0.8157  delta=0.0056
+   23. act_dueutl_m11                                gini_train=0.8179  gini_val=0.8073  delta=0.0130
+   24. act_utl_m6                                    gini_train=0.8131  gini_val=0.8075  delta=0.0069
+   25. act_due_m8                                    gini_train=0.7973  gini_val=0.7915  delta=0.0073
+   26. act_paid_installments_m8                      gini_train=0.7973  gini_val=0.7915  delta=0.0073
+   27. act_utl_m5                                    gini_train=0.7904  gini_val=0.7841  delta=0.0080
+   28. act_utl_m4                                    gini_train=0.7840  gini_val=0.7778  delta=0.0080
+   29. act_dueinc_m9                                 gini_train=0.7839  gini_val=0.7812  delta=0.0034
+   30. act_dueutl_m10                                gini_train=0.7784  gini_val=0.7747  delta=0.0047
+   31. act_dueinc_m8                                 gini_train=0.7532  gini_val=0.7473  delta=0.0079
+   32. act_utl_m3                                    gini_train=0.7488  gini_val=0.7456  delta=0.0043
+   33. act_due_m7                                    gini_train=0.7469  gini_val=0.7460  delta=0.0012
+   34. act_paid_installments_m7                      gini_train=0.7469  gini_val=0.7460  delta=0.0012
+   35. act_dueutl_m9                                 gini_train=0.7254  gini_val=0.7225  delta=0.0039
+   36. act_dueinc_m7                                 gini_train=0.7135  gini_val=0.7132  delta=0.0004
+   37. act_due_m6                                    gini_train=0.6875  gini_val=0.6886  delta=0.0016
+   38. act_paid_installments_m6                      gini_train=0.6875  gini_val=0.6886  delta=0.0016
+   39. act_dueutl_m8                                 gini_train=0.6833  gini_val=0.6778  delta=0.0080
+   40. loan_amount                                   gini_train=0.6722  gini_val=0.6696  delta=0.0038
+   41. app_loan_amount                               gini_train=0.6722  gini_val=0.6696  delta=0.0038
+   42. act_dueinc_m6                                 gini_train=0.6691  gini_val=0.6699  delta=0.0013
+   43. act_due_m5                                    gini_train=0.6366  gini_val=0.6290  delta=0.0119
+   44. act_paid_installments_m5                      gini_train=0.6366  gini_val=0.6290  delta=0.0119
+   45. act_dueutl_m7                                 gini_train=0.6353  gini_val=0.6342  delta=0.0017
+   46. n_installments                                gini_train=0.6318  gini_val=0.6269  delta=0.0077
+   47. app_n_installments                            gini_train=0.6318  gini_val=0.6269  delta=0.0077
+   48. act_dueinc_m5                                 gini_train=0.6283  gini_val=0.6194  delta=0.0141
+   49. months_coll_2plus                             gini_train=0.6252  gini_val=0.6228  delta=0.0038
+   50. act_utl_m2                                    gini_train=0.6198  gini_val=0.6163  delta=0.0056
+   51. act_days_m12                                  gini_train=0.6020  gini_val=0.6007  delta=0.0022
+   52. act_days_m11                                  gini_train=0.5987  gini_val=0.5971  delta=0.0027
+   53. act_cus_dueutl_m11                            gini_train=0.5975  gini_val=0.5987  delta=0.0020
+   54. act_cus_dueutl_m12                            gini_train=0.5931  gini_val=0.5947  delta=0.0027
+   55. act_cus_dueutl_m10                            gini_train=0.5921  gini_val=0.5931  delta=0.0018
+   56. act_cus_dueutl_m9                             gini_train=0.5868  gini_val=0.5881  delta=0.0023
+   57. act_dueutl_m6                                 gini_train=0.5866  gini_val=0.5890  delta=0.0040
+   58. agr12_Mean_CMax_Due                           gini_train=0.5858  gini_val=0.5948  delta=0.0154
+   59. agr12_Mean_Due                                gini_train=0.5858  gini_val=0.5948  delta=0.0154
+   60. act_days_m10                                  gini_train=0.5840  gini_val=0.5711  delta=0.0220
+   61. act_cus_dueutl_m8                             gini_train=0.5832  gini_val=0.5841  delta=0.0016
+   62. agr6_Mean_CMax_Due                            gini_train=0.5828  gini_val=0.5920  delta=0.0159
+   63. agr6_Mean_Due                                 gini_train=0.5828  gini_val=0.5920  delta=0.0159
+   64. agr6_Max_Due                                  gini_train=0.5782  gini_val=0.5867  delta=0.0148
+   65. agr6_Max_CMax_Due                             gini_train=0.5782  gini_val=0.5867  delta=0.0148
+   66. agr12_Max_CMax_Due                            gini_train=0.5768  gini_val=0.5854  delta=0.0149
+   67. agr12_Max_Due                                 gini_train=0.5768  gini_val=0.5854  delta=0.0149
+   68. act_dueinc_m4                                 gini_train=0.5685  gini_val=0.5578  delta=0.0187
+   69. act_due_m4                                    gini_train=0.5671  gini_val=0.5583  delta=0.0154
+   70. act_paid_installments_m4                      gini_train=0.5671  gini_val=0.5583  delta=0.0154
+   71. act_cus_dueutl_m7                             gini_train=0.5663  gini_val=0.5671  delta=0.0013
+   72. act_cus_dueutl_m6                             gini_train=0.5504  gini_val=0.5496  delta=0.0013
+   73. act_dueutl_m5                                 gini_train=0.5467  gini_val=0.5396  delta=0.0129
+   74. act_days_m9                                   gini_train=0.5370  gini_val=0.5321  delta=0.0092
+   75. act_cus_dueutl_m5                             gini_train=0.5275  gini_val=0.5227  delta=0.0090
+   76. act_days_m8                                   gini_train=0.4992  gini_val=0.4955  delta=0.0074
+   77. act_dueutl_m4                                 gini_train=0.4867  gini_val=0.4794  delta=0.0151
+   78. act_cus_dueutl_m4                             gini_train=0.4794  gini_val=0.4766  delta=0.0058
+   79. act_dueinc_m3                                 gini_train=0.4765  gini_val=0.4745  delta=0.0043
+   80. act_due_m3                                    gini_train=0.4676  gini_val=0.4671  delta=0.0012
+   81. act_paid_installments_m3                      gini_train=0.4676  gini_val=0.4671  delta=0.0012
+   82. coll_status_m3                                gini_train=0.4522  gini_val=0.4466  delta=0.0123
+   83. act_days_m7                                   gini_train=0.4448  gini_val=0.4343  delta=0.0234
+   84. coll_status_m4                                gini_train=0.4302  gini_val=0.4302  delta=0.0001
+   85. act_dueinc_m2                                 gini_train=0.4246  gini_val=0.4234  delta=0.0028
+   86. act_cus_dueutl_m3                             gini_train=0.4241  gini_val=0.4205  delta=0.0086
+   87. act_loaninc_m8                                gini_train=0.4146  gini_val=0.4098  delta=0.0115
+   88. act_loaninc_m9                                gini_train=0.4141  gini_val=0.4103  delta=0.0092
+   89. act_loaninc_m10                               gini_train=0.4130  gini_val=0.4086  delta=0.0108
+   90. act_loaninc_m7                                gini_train=0.4127  gini_val=0.4074  delta=0.0128
+   91. act_loaninc_m11                               gini_train=0.4114  gini_val=0.4074  delta=0.0097
+   92. act_loaninc_m12                               gini_train=0.4088  gini_val=0.4065  delta=0.0056
+   93. act_loaninc_m6                                gini_train=0.4075  gini_val=0.4015  delta=0.0147
+   94. coll_status_m2                                gini_train=0.4062  gini_val=0.4068  delta=0.0015
+   95. act_due_m2                                    gini_train=0.4062  gini_val=0.4068  delta=0.0015
+   96. act_paid_installments_m2                      gini_train=0.4062  gini_val=0.4068  delta=0.0015
+   97. act_loaninc_m5                                gini_train=0.4045  gini_val=0.3969  delta=0.0189
+   98. act_dueutl_m3                                 gini_train=0.4041  gini_val=0.4036  delta=0.0012
+   99. act_loaninc_m4                                gini_train=0.4003  gini_val=0.3930  delta=0.0182
+  100. coll_status_m5                                gini_train=0.3961  gini_val=0.3938  delta=0.0058
+  101. act_loaninc_m3                                gini_train=0.3955  gini_val=0.3890  delta=0.0164
+  102. act_loaninc_m2                                gini_train=0.3921  gini_val=0.3847  delta=0.0186
+  103. act_loaninc_m1                                gini_train=0.3890  gini_val=0.3814  delta=0.0194
+  104. act_days_m6                                   gini_train=0.3840  gini_val=0.3804  delta=0.0093
+  105. act_dueutl_m2                                 gini_train=0.3514  gini_val=0.3516  delta=0.0006
+  106. act_cus_dueutl_m2                             gini_train=0.3514  gini_val=0.3516  delta=0.0006
+  107. coll_status_m6                                gini_train=0.3474  gini_val=0.3453  delta=0.0059
+  108. act_days_m2                                   gini_train=0.3439  gini_val=0.3416  delta=0.0067
+  109. act_days_m5                                   gini_train=0.3404  gini_val=0.3268  delta=0.0399
+  110. installment                                   gini_train=0.3340  gini_val=0.3335  delta=0.0015
+  111. coll_status_m7                                gini_train=0.2985  gini_val=0.2974  delta=0.0036
+  112. agr12_Min_Days                                gini_train=0.2922  gini_val=0.3077  delta=0.0531
+  113. agr12_Min_CMax_Days                           gini_train=0.2922  gini_val=0.3077  delta=0.0531
+  114. act_days_m4                                   gini_train=0.2850  gini_val=0.2885  delta=0.0123
+  115. app_nom_job_code                              gini_train=0.2629  gini_val=0.2720  delta=0.0346
+  116. act_age                                       gini_train=0.2526  gini_val=0.2550  delta=0.0097
+  117. coll_status_m8                                gini_train=0.2492  gini_val=0.2482  delta=0.0041
+  118. act_cus_utl_m12                               gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  119. act_cus_utl_m11                               gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  120. act_cus_utl_m3                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  121. act_cus_utl_m4                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  122. act_cus_utl_m6                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  123. act_cus_utl_m1                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  124. act_cus_utl_m5                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  125. act_cus_utl_m9                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  126. act_cus_utl_m10                               gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  127. act_cus_utl_m2                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  128. act_cus_utl_m7                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  129. act_cus_utl_m8                                gini_train=0.2406  gini_val=0.2358  delta=0.0199
+  130. coll_status_m9                                gini_train=0.2083  gini_val=0.2049  delta=0.0166
+  131. app_number_of_children                        gini_train=0.2062  gini_val=0.2060  delta=0.0011
+  132. app_nom_marital_status                        gini_train=0.1993  gini_val=0.1919  delta=0.0369
+  133. act_days_m3                                   gini_train=0.1914  gini_val=0.1867  delta=0.0246
+  134. agr6_Min_Days                                 gini_train=0.1808  gini_val=0.1930  delta=0.0678
+  135. agr6_Min_CMax_Days                            gini_train=0.1808  gini_val=0.1930  delta=0.0678
+  136. act_cus_cc_m8                                 gini_train=0.1780  gini_val=0.1748  delta=0.0179
+  137. act_cus_cc_m9                                 gini_train=0.1774  gini_val=0.1748  delta=0.0146
+  138. act_cus_cc_m10                                gini_train=0.1760  gini_val=0.1727  delta=0.0185
+  139. act_cus_cc_m7                                 gini_train=0.1756  gini_val=0.1706  delta=0.0283
+  140. act_cus_cc_m11                                gini_train=0.1741  gini_val=0.1722  delta=0.0110
+  141. coll_status_m10                               gini_train=0.1726  gini_val=0.1682  delta=0.0257
+  142. act_cus_cc_m12                                gini_train=0.1705  gini_val=0.1708  delta=0.0015
+  143. act_cus_cc_m6                                 gini_train=0.1687  gini_val=0.1631  delta=0.0329
+  144. act_cc_m8                                     gini_train=0.1668  gini_val=0.1697  delta=0.0180
+  145. act_cc_m9                                     gini_train=0.1662  gini_val=0.1680  delta=0.0110
+  146. act_cc_m7                                     gini_train=0.1651  gini_val=0.1642  delta=0.0051
+  147. act_cc_m10                                    gini_train=0.1640  gini_val=0.1663  delta=0.0141
+  148. act_cus_cc_m5                                 gini_train=0.1634  gini_val=0.1555  delta=0.0484
+  149. act_cc_m11                                    gini_train=0.1620  gini_val=0.1668  delta=0.0296
+  150. app_nom_gender                                gini_train=0.1579  gini_val=0.1567  delta=0.0079
+  151. act_cc_m6                                     gini_train=0.1574  gini_val=0.1567  delta=0.0043
+  152. act_cc_m12                                    gini_train=0.1570  gini_val=0.1645  delta=0.0473
+  153. act_cus_cc_m4                                 gini_train=0.1557  gini_val=0.1478  delta=0.0504
+  154. act_cc_m5                                     gini_train=0.1521  gini_val=0.1474  delta=0.0310
+  155. coll_status_m11                               gini_train=0.1516  gini_val=0.1514  delta=0.0015
+  156. act_cus_cc_m3                                 gini_train=0.1472  gini_val=0.1406  delta=0.0443
+  157. coll_status_m12                               gini_train=0.1454  gini_val=0.1397  delta=0.0386
+  158. act_cc_m4                                     gini_train=0.1435  gini_val=0.1376  delta=0.0408
+  159. agr12_Mean_CMax_Days                          gini_train=0.1429  gini_val=0.1606  delta=0.1236
+  160. agr12_Mean_Days                               gini_train=0.1429  gini_val=0.1606  delta=0.1236
+  161. act_cus_cc_m2                                 gini_train=0.1367  gini_val=0.1312  delta=0.0400
+  162. act_cc_m3                                     gini_train=0.1356  gini_val=0.1309  delta=0.0348
+  163. act_cc_m2                                     gini_train=0.1267  gini_val=0.1234  delta=0.0260
+  164. act_cc_m1                                     gini_train=0.1207  gini_val=0.1170  delta=0.0302
+  165. act_cus_cc_m1                                 gini_train=0.1207  gini_val=0.1170  delta=0.0302
+  166. app_nom_city                                  gini_train=0.0699  gini_val=0.0727  delta=0.0387
+  167. act_cus_seniority_m4                          gini_train=0.0655  gini_val=0.0697  delta=0.0632
+  168. act_cus_seniority_m5                          gini_train=0.0567  gini_val=0.0564  delta=0.0060
+  169. act_cus_seniority_m3                          gini_train=0.0483  gini_val=0.0480  delta=0.0071
+  170. app_nom_cars                                  gini_train=0.0404  gini_val=0.0373  delta=0.0774
+  171. app_nom_home_status                           gini_train=0.0402  gini_val=0.0344  delta=0.1431
+  172. max_coll_status                               gini_train=0.0357  gini_val=0.0401  delta=0.1245
+  173. act_cus_seniority_m2                          gini_train=0.0335  gini_val=0.0348  delta=0.0392
+  174. act_cus_seniority_m6                          gini_train=0.0282  gini_val=0.0278  delta=0.0129
+
+Post-screening manual drop: trend_due removed (perfectly collinear with act_due_m12, r=1.0)
+Final selected features: 173
