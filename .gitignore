@@ -15,4 +15,10 @@ tests/test_data/simulate
 artifacts/thesis_abt/*.csv
 artifacts/thesis_wide_abt/*.csv
 artifacts/thesis_wide_abt_3m/*.csv
+artifacts/thesis_wide_abt_12m*/*.csv
+artifacts/phase3/*.parquet
+artifacts/phase4/*.parquet
+artifacts/phase4/figures/*.png
+artifacts/phase4/figures/*.pdf
+*.parquet
 examples/thesis_baseline/runs/
