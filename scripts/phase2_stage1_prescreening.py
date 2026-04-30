@@ -7,6 +7,8 @@ Steps
 2. Near-zero variance   : drop col if top-value share >= 95% of non-null rows
 3. Univariate Gini      : 70/30 split (seed=42), keep gini_train > 0.02
 4. Stability filter     : drop col if delta_gini > 0.20
+5. Collinearity dedup   : drop manual blacklist (trend_due), then for any pair
+                          with |Pearson rho| >= 0.99, drop the lower-Gini member
 
 Categorical handling
 --------------------
@@ -51,6 +53,13 @@ NULL_THRESHOLD     = 0.50   # Step 1: drop if null% > 50%
 NZV_THRESHOLD      = 0.95   # Step 2: drop if top-value share >= 95%
 GINI_MIN           = 0.02   # Step 3: keep if gini_train > 0.02
 STABILITY_MAX      = 0.20   # Step 4: drop if delta_gini > 0.20
+RHO_THRESHOLD      = 0.99   # Step 5: drop one of any pair with |rho| >= 0.99
+
+# Step 5 manual blacklist — features dropped unconditionally before correlation
+# pruning.  trend_due  = act_due_m12 - act_due_m1; both originals survive
+# Stage 1 with much higher Gini, so the difference is collinear and not
+# additive.  Codifies the manual post-screening edit from the Opus audit.
+MANUAL_DROPS       = ["trend_due"]
 
 VAL_SPLIT          = 0.30
 RANDOM_STATE       = 42
@@ -280,16 +289,124 @@ def step4_stability(
 
 
 # ---------------------------------------------------------------------------
+# Step 5 — Collinearity dedup
+# ---------------------------------------------------------------------------
+
+def step5_collinearity(
+    X: pd.DataFrame,
+    gini_df: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict]:
+    """Drop manual blacklist, then for any pair |rho| >= RHO_THRESHOLD drop
+    the one with the lower gini_train (ties broken by alphabetical name).
+
+    Iteration order: walk pairs sorted by |rho| descending so that the
+    strongest ties are resolved first; once a feature is dropped it can no
+    longer cause additional drops.
+    """
+    sep(f"Step 5 -- Collinearity Dedup  "
+        f"(manual blacklist + |rho| >= {RHO_THRESHOLD})")
+
+    # 5a — Manual blacklist (codifies post-audit manual edits)
+    manual_present = [c for c in MANUAL_DROPS if c in X.columns]
+    manual_absent  = [c for c in MANUAL_DROPS if c not in X.columns]
+    if manual_present:
+        log(f"  5a: manual blacklist drops {len(manual_present)}: {manual_present}")
+        for c in manual_present:
+            log(f"    DROP {c}: manual blacklist (audit Fix 1)")
+        X = X.drop(columns=manual_present)
+    else:
+        log(f"  5a: manual blacklist empty after upstream filtering")
+    if manual_absent:
+        log(f"  5a: blacklisted but already absent: {manual_absent}")
+
+    # 5b — Pairwise Pearson correlation dedup
+    cols = list(X.columns)
+    if len(cols) < 2:
+        log(f"  5b: <2 features remaining, skipping correlation dedup")
+        return X, {
+            "manual_dropped": manual_present,
+            "manual_absent":  manual_absent,
+            "corr_pairs":     [],
+            "corr_dropped":   [],
+        }
+
+    log(f"  5b: computing Pearson correlation matrix for {len(cols)} features")
+    t0 = time.time()
+    # Median-impute residual NaN per column so pairwise corr is well-defined
+    X_filled = X.copy()
+    for col in cols:
+        if X_filled[col].isna().any():
+            X_filled[col] = X_filled[col].fillna(X_filled[col].median())
+    corr = X_filled.corr(method="pearson").abs()
+    log(f"    corr matrix computed in {time.time() - t0:.1f}s")
+
+    # Gini lookup
+    gini_lookup = dict(zip(gini_df["feature"], gini_df["gini_train"]))
+
+    # Collect upper-triangle pairs above threshold, sorted by |rho| desc
+    pair_records: list[tuple[str, str, float]] = []
+    for i, a in enumerate(cols):
+        for b in cols[i + 1:]:
+            rho = corr.at[a, b]
+            if pd.notna(rho) and rho >= RHO_THRESHOLD:
+                pair_records.append((a, b, float(rho)))
+    pair_records.sort(key=lambda t: t[2], reverse=True)
+    log(f"    found {len(pair_records)} pairs with |rho| >= {RHO_THRESHOLD}")
+
+    dropped_set: set[str] = set()
+    decisions: list[dict] = []
+    for a, b, rho in pair_records:
+        if a in dropped_set or b in dropped_set:
+            continue
+        ga = gini_lookup.get(a, 0.0)
+        gb = gini_lookup.get(b, 0.0)
+        if ga > gb:
+            keep, drop = a, b
+        elif gb > ga:
+            keep, drop = b, a
+        else:
+            # Tie -- drop alphabetically later for determinism
+            keep, drop = sorted([a, b])[0], sorted([a, b])[1]
+        dropped_set.add(drop)
+        decisions.append({
+            "feature_a":  a,
+            "feature_b":  b,
+            "rho":        round(rho, 6),
+            "gini_a":     round(ga, 6),
+            "gini_b":     round(gb, 6),
+            "kept":       keep,
+            "dropped":    drop,
+        })
+        log(f"    PAIR rho={rho:.4f}  {a}(g={ga:.4f}) <-> {b}(g={gb:.4f})  "
+            f"-> keep {keep}, drop {drop}")
+
+    kept_cols = [c for c in cols if c not in dropped_set]
+    X = X[kept_cols]
+    log(f"  5b: dropped {len(dropped_set)} via correlation dedup")
+    log(f"  Features after Step 5: {len(X.columns)}")
+
+    return X, {
+        "manual_dropped": manual_present,
+        "manual_absent":  manual_absent,
+        "corr_pairs":     decisions,
+        "corr_dropped":   sorted(dropped_set),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Write report
 # ---------------------------------------------------------------------------
 
 def write_report(
     output_dir: Path,
     features_initial: list[str],
+    train_rows: int,
+    default_rate: float,
     step1_info: dict,
     step2_info: dict,
     step3_info: dict,
     step4_info: dict,
+    step5_info: dict,
     final_features: list[str],
 ) -> None:
     report_path  = output_dir / "stage1_prescreening_report.txt"
@@ -301,8 +418,8 @@ def write_report(
         "Phase 2 Stage 1 -- Feature Pre-screening Report",
         "=" * 70,
         f"Input ABT    : thesis_wide_abt_12m_500c_clean/thesis_wide_abt.csv",
-        f"Train rows   : 577,965",
-        f"Target       : default_flag_12m  (default rate 3.27%)",
+        f"Train rows   : {train_rows:,}",
+        f"Target       : default_flag_12m  (default rate {default_rate*100:.4f}%)",
         f"Initial features: {len(features_initial)}",
         "",
         "Categorical encoding note:",
@@ -369,6 +486,44 @@ def write_report(
             )
     else:
         lines.append("  (no columns dropped -- all pass stability filter)")
+    n_after4 = n_after3 - len(step4_info["dropped"])
+    lines.append(f"  Features remaining: {n_after4}")
+
+    # Step 5 — Collinearity dedup
+    n_manual = len(step5_info.get("manual_dropped", []))
+    n_corr   = len(step5_info.get("corr_dropped",   []))
+    lines += [
+        "",
+        "=" * 70,
+        f"Step 5 -- Collinearity Dedup  "
+        f"(manual blacklist + |Pearson rho| >= {RHO_THRESHOLD})",
+        "-" * 70,
+        f"  5a Manual blacklist drops : {n_manual}",
+    ]
+    for c in step5_info.get("manual_dropped", []):
+        lines.append(f"    {c:<45}  manual blacklist (audit Fix 1)")
+    if step5_info.get("manual_absent"):
+        lines.append(
+            f"  5a Blacklisted but already absent: "
+            + ", ".join(step5_info["manual_absent"])
+        )
+
+    pairs = step5_info.get("corr_pairs", [])
+    lines.append("")
+    lines.append(f"  5b Correlation pairs found: {len(pairs)}")
+    if pairs:
+        lines.append(
+            f"  {'rho':>6}  {'feature_a':<40} {'g_a':>7}   "
+            f"{'feature_b':<40} {'g_b':>7}   dropped"
+        )
+        for d in pairs:
+            lines.append(
+                f"  {d['rho']:>6.4f}  "
+                f"{d['feature_a']:<40} {d['gini_a']:>7.4f}   "
+                f"{d['feature_b']:<40} {d['gini_b']:>7.4f}   "
+                f"{d['dropped']}"
+            )
+    lines.append(f"  5b Total correlation drops: {n_corr}")
     lines.append(f"  Features remaining: {len(final_features)}")
 
     # Summary table — all screened features
@@ -380,12 +535,22 @@ def write_report(
         f"  {'Feature':<45} {'gini_tr':>8} {'gini_val':>9} {'delta':>8}  Status",
         "-" * 70,
     ]
-    final_set = set(final_features)
+    final_set     = set(final_features)
+    manual_set    = set(step5_info.get("manual_dropped", []))
+    corr_drop_set = set(step5_info.get("corr_dropped",   []))
     kept_gini = gini_df[gini_df["feature"].isin(
         step3_info["kept_df"]["feature"].tolist()
     )].copy()
     for _, row in kept_gini.iterrows():
-        status = "selected" if row["feature"] in final_set else "stability_drop"
+        feat = row["feature"]
+        if feat in final_set:
+            status = "selected"
+        elif feat in manual_set:
+            status = "manual_drop"
+        elif feat in corr_drop_set:
+            status = "corr_drop"
+        else:
+            status = "stability_drop"
         delta_str = f"{row['delta_gini']:.4f}" if not np.isnan(row["delta_gini"]) else "   nan"
         lines.append(
             f"  {row['feature']:<45} {row['gini_train']:>8.4f} "
@@ -450,26 +615,43 @@ def main() -> int:
 
     # Load
     X, y, features_initial = load_train(input_dir)
+    train_rows   = len(y)
+    default_rate = float(y.mean())
 
     # Steps
     X, step1_info = step1_missing(X)
     X, step2_info = step2_nzv(X)
     X, step3_info = step3_gini(X, y)
     X, step4_info = step4_stability(X, step3_info["gini_df"])
+    X, step5_info = step5_collinearity(X, step3_info["gini_df"])
 
     final_features = list(X.columns)
+
+    n_after_1 = len(features_initial) - len(step1_info["dropped"])
+    n_after_2 = n_after_1            - len(step2_info["dropped"])
+    n_after_3 = len(step3_info["kept_df"])
+    n_after_4 = n_after_3            - len(step4_info["dropped"])
+
+    n_step5_drops = (
+        len(step5_info.get("manual_dropped", []))
+        + len(step5_info.get("corr_dropped", []))
+    )
 
     # Print final summary
     sep("Final Summary")
     print(f"  Initial features    : {len(features_initial)}")
-    print(f"  After Step 1 (null) : {len(features_initial) - len(step1_info['dropped'])}"
+    print(f"  After Step 1 (null) : {n_after_1}"
           f"  (dropped {len(step1_info['dropped'])})")
-    print(f"  After Step 2 (NZV)  : {len(features_initial) - len(step1_info['dropped']) - len(step2_info['dropped'])}"
+    print(f"  After Step 2 (NZV)  : {n_after_2}"
           f"  (dropped {len(step2_info['dropped'])})")
-    print(f"  After Step 3 (Gini) : {len(step3_info['kept_df'])}"
+    print(f"  After Step 3 (Gini) : {n_after_3}"
           f"  (dropped {len(step3_info['dropped'])})")
-    print(f"  After Step 4 (stab) : {len(final_features)}"
+    print(f"  After Step 4 (stab) : {n_after_4}"
           f"  (dropped {len(step4_info['dropped'])})")
+    print(f"  After Step 5 (corr) : {len(final_features)}"
+          f"  (dropped {n_step5_drops}: "
+          f"{len(step5_info.get('manual_dropped', []))} manual + "
+          f"{len(step5_info.get('corr_dropped',   []))} pairwise)")
     print()
     gini_df = step3_info["gini_df"]
     final_gini = gini_df[gini_df["feature"].isin(final_features)].head(20)
@@ -483,7 +665,8 @@ def main() -> int:
 
     # Write outputs
     write_report(output_dir, features_initial,
-                 step1_info, step2_info, step3_info, step4_info,
+                 train_rows, default_rate,
+                 step1_info, step2_info, step3_info, step4_info, step5_info,
                  final_features)
 
     elapsed = time.time() - t_start
