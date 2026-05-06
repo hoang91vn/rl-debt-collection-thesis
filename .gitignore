@@ -16,9 +16,17 @@ artifacts/thesis_abt/*.csv
 artifacts/thesis_wide_abt/*.csv
 artifacts/thesis_wide_abt_3m/*.csv
 artifacts/thesis_wide_abt_12m*/*.csv
+artifacts/thesis_wide_abt_800d_60m_p00/*.csv
 artifacts/phase3/*.parquet
 artifacts/phase4/*.parquet
 artifacts/phase4/figures/*.png
 artifacts/phase4/figures/*.pdf
 *.parquet
 examples/thesis_baseline/runs/
+
+# Final simulation raw output (~29GB) — only metadata/reports tracked
+artifacts/final_data_800d_60m_p00/transactions.csv
+artifacts/final_data_800d_60m_p00/accounts.csv
+artifacts/final_data_800d_60m_p00/collection_actions.csv
+artifacts/final_data_800d_60m_p00/abt_base_*.csv
+artifacts/final_data_800d_60m_p00/summary_abt_*.csv

@@ -1,0 +1,15 @@
+run_label: final_data_800d_60m_p00
+new_clients_count: 800
+start_date: 20240501
+end_date: 20290501
+n_periods: 60
+p_positive: 0.0
+take_up: 1.0
+seed: 42
+matrix_tuning: false
+simulator_core_modified: false
+take_up_implemented: false
+output_directory: E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\final_data_800d_60m_p00
+reaction_rng_seed: 43
+wall_time_seconds: 46068.1
+wall_time_hours: 12.8
