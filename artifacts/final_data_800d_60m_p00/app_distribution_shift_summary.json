@@ -1,0 +1,11 @@
+{
+  "n_train_orig_snapshots": 389600,
+  "n_oot_orig_snapshots": 144800,
+  "max_psi_app": 0.000106,
+  "max_abs_smd_app_numeric": 0.003813,
+  "psi_thresholds": {
+    "<0.10": "no shift",
+    "0.10-0.25": "minor",
+    ">0.25": "major"
+  }
+}

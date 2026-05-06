@@ -1,0 +1,122 @@
+{
+  "app_nom_branch": [
+    {
+      "category": "2",
+      "train_pct": 33.332,
+      "oot_pct": 33.281,
+      "diff_pp": -0.051
+    },
+    {
+      "category": "3",
+      "train_pct": 33.333,
+      "oot_pct": 33.249,
+      "diff_pp": -0.084
+    },
+    {
+      "category": "4",
+      "train_pct": 18.62,
+      "oot_pct": 18.726,
+      "diff_pp": 0.105
+    },
+    {
+      "category": "1",
+      "train_pct": 14.715,
+      "oot_pct": 14.744,
+      "diff_pp": 0.03
+    }
+  ],
+  "app_nom_gender": [
+    {
+      "category": "1",
+      "train_pct": 52.226,
+      "oot_pct": 52.11,
+      "diff_pp": -0.116
+    },
+    {
+      "category": "0",
+      "train_pct": 47.774,
+      "oot_pct": 47.89,
+      "diff_pp": 0.116
+    }
+  ],
+  "app_nom_job_code": [
+    {
+      "category": "4",
+      "train_pct": 54.076,
+      "oot_pct": 54.359,
+      "diff_pp": 0.283
+    },
+    {
+      "category": "2",
+      "train_pct": 21.801,
+      "oot_pct": 21.579,
+      "diff_pp": -0.222
+    },
+    {
+      "category": "3",
+      "train_pct": 19.203,
+      "oot_pct": 19.142,
+      "diff_pp": -0.061
+    },
+    {
+      "category": "1",
+      "train_pct": 4.919,
+      "oot_pct": 4.92,
+      "diff_pp": 0.0
+    }
+  ],
+  "app_nom_marital_status": [
+    {
+      "category": "4",
+      "train_pct": 60.069,
+      "oot_pct": 60.146,
+      "diff_pp": 0.077
+    },
+    {
+      "category": "2",
+      "train_pct": 26.795,
+      "oot_pct": 26.664,
+      "diff_pp": -0.132
+    },
+    {
+      "category": "3",
+      "train_pct": 11.246,
+      "oot_pct": 11.312,
+      "diff_pp": 0.067
+    },
+    {
+      "category": "1",
+      "train_pct": 1.89,
+      "oot_pct": 1.878,
+      "diff_pp": -0.012
+    }
+  ],
+  "app_nom_home_status": [
+    {
+      "category": "3",
+      "train_pct": 90.621,
+      "oot_pct": 90.525,
+      "diff_pp": -0.097
+    },
+    {
+      "category": "2",
+      "train_pct": 9.379,
+      "oot_pct": 9.475,
+      "diff_pp": 0.097
+    }
+  ],
+  "app_nom_cars": [
+    {
+      "category": "2",
+      "train_pct": 83.282,
+      "oot_pct": 83.311,
+      "diff_pp": 0.029
+    },
+    {
+      "category": "1",
+      "train_pct": 16.718,
+      "oot_pct": 16.689,
+      "diff_pp": -0.029
+    }
+  ]
+}
