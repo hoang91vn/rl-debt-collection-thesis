@@ -1,0 +1,26 @@
+{
+  "wall_time_seconds": 46068.1,
+  "wall_time_hours": 12.8,
+  "n_originations": 1460800,
+  "n_tx_rows": 29266484,
+  "n_writeoff": 64979,
+  "n_active": 615211,
+  "n_default_status": 64979,
+  "n_closed": 780610,
+  "overall_dr_exact": 0.04448179079956188,
+  "post_burn_in_dr_exact": 0.015516629297458893,
+  "train_dr_exact": 0.036991786447638605,
+  "oot_dr_exact": 0.011712707182320443,
+  "post_filter_rows": 534400,
+  "train_rows": 389600,
+  "oot_rows": 144800,
+  "oot_default_count": 1696,
+  "score_scorem_in_wide_abt": false,
+  "score_scorem_audit_method": "build_wide_abt.py uses explicit FINAL_COLS whitelist (line 923: df_final = df[FINAL_COLS].copy()). FINAL_COLS = ID + APP + ORIG + BEHAV_FLAT + CUS_FLAT + AGG + SUMMARY_AGG + TARGET + META. score and scorem are not in any of these lists.",
+  "row_counts_by_exclusion_option": {
+    "option_A_include_all": 534400,
+    "option_B_exclude_202706": 510400,
+    "option_C_exclude_202705_706": 485600
+  },
+  "gate_pass": true
+}

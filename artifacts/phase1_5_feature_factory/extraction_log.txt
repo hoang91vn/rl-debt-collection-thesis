@@ -1,0 +1,73 @@
+[    0.0s] ======================================================================
+[    0.0s] Phase 1.5 Feature Factory
+[    0.0s] ======================================================================
+[    0.0s] Loading ABT: artifacts\thesis_wide_abt_800d_60m_p00\thesis_wide_abt.csv
+[    8.7s]   loaded 534,314 rows x 192 cols  (memory: 858 MB)
+[    8.7s] Schema aliases detected: {'age': 'act_age', 'loan_amount': 'app_loan_amount', 'n_installments': 'app_n_installments', 'installment': 'installment', 'split': 'split'}
+[    8.7s]   DUPLICATE: app_loan_amount == loan_amount (perfect equality, dropping app_loan_amount)
+[    8.7s]   DUPLICATE: app_n_installments == n_installments (perfect equality, dropping app_n_installments)
+[    8.9s] Dropped duplicate columns: ['app_loan_amount', 'app_n_installments']
+[    8.9s] Re-detected aliases after drops: {'age': 'act_age', 'loan_amount': 'loan_amount', 'n_installments': 'n_installments', 'installment': 'installment', 'split': 'split'}
+[    8.9s] Classifying ALL original columns...
+[    8.9s]   ORIGINAL_BEHAVIORAL            169
+[    8.9s]   ORIGINAL_APP                   11
+[    8.9s]   ORIGINAL_ID                    4
+[    8.9s]   ORIGINAL_LOAN                  3
+[    8.9s]   ORIGINAL_TARGET                1
+[    8.9s]   ORIGINAL_OTHER                 1
+[    8.9s]   ORIGINAL_SPLIT                 1
+[    8.9s] Behavioral series detected: 13
+[    8.9s]   act_due: m2..m12 (11 months)
+[    8.9s]   act_paid_installments: m2..m12 (11 months)
+[    8.9s]   act_utl: m2..m12 (11 months)
+[    8.9s]   act_dueutl: m2..m12 (11 months)
+[    8.9s]   act_cc: m1..m12 (12 months)
+[    8.9s]   act_dueinc: m2..m12 (11 months)
+[    8.9s]   act_days: m2..m12 (11 months)
+[    8.9s]   act_loaninc: m1..m12 (12 months)
+[    8.9s]   coll_status: m2..m12 (11 months)
+[    8.9s]   act_cus_seniority: m2..m6 (5 months)
+[    8.9s]   act_cus_utl: m1..m12 (12 months)
+[    8.9s]   act_cus_dueutl: m2..m12 (11 months)
+[    8.9s]   act_cus_cc: m1..m12 (12 months)
+[    8.9s] Numeric originals (for F6A/F6C transforms): 177
+[    8.9s] Family F1: rolling window stats
+[   17.6s]   F1 generated: 338 features
+[   17.6s] Family F2: trend slope/intercept/r2
+[   20.3s]   F2 generated: 117 features
+[   20.3s] Family F3: ratios
+[   20.4s]   F3 generated: 12 features
+[   20.4s] Family F4: interactions
+[   20.4s]   F4 generated: 9 features
+[   20.4s] Family F5A: app-only group stats (train-only mappings)
+[   20.6s]   train rows: 389,525, oot rows: 144,789
+[   21.3s]   F5A generated: 37 features
+[   21.3s] Family F5B: loan-term group stats
+[   21.7s]   F5B generated: 15 features
+[   21.8s] Family F6A: rank/pct/zscore/log/sqrt transforms over 177 numeric originals
+[   32.3s]   F6A generated: 885 features
+[   32.3s] Family F6B: one-hot bin indicators
+[   33.2s]   F6B generated: 156 features
+[   33.2s] Family F6C: noisy copies over 177 numeric originals
+[   35.5s]   F6C generated: 177 features
+[   35.5s] Family F6D: pure random negative controls
+[   36.0s]   F6D generated: 100 features
+[   36.0s] Family F6E: synthetic bureau-like (safe app vars + noise only)
+[   38.5s]   F6E generated: 200 features
+[   38.5s] Total generated features: 2046
+[   38.5s] Assembling expanded ABT...
+[   46.1s]   expanded: 534,314 rows x 2236 cols
+[   46.5s]   memory: 5020 MB
+[   47.1s] Full catalog: 2236 rows
+[   47.1s] Validating outputs...
+[   47.1s]   rows: 534,314 (expected 534,314) -> PASS
+[   54.3s]   infinities: 0 -> PASS
+[   54.3s]   catalog rows: 2236, df cols: 2236
+[   54.3s]   uses_target=true count: 1 -> PASS
+[   54.3s] Saving outputs...
+[  100.8s]   saved: artifacts\phase1_5_feature_factory\thesis_wide_abt_expanded.parquet (parquet (pyarrow/snappy))
+[  100.8s]   saved: artifacts\phase1_5_feature_factory\feature_catalog.csv
+[  100.8s]   saved: artifacts\phase1_5_feature_factory\feature_family_summary.txt
+[  100.8s]   saved: artifacts\phase1_5_feature_factory\run_config.json
+[  100.8s] Writing phase1_5_report.md...
+[  102.2s]   saved: artifacts\phase1_5_feature_factory\phase1_5_report.md

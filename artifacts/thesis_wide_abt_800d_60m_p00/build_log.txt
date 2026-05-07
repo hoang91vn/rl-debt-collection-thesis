@@ -1,0 +1,81 @@
+[build_wide_abt] data_dir   : E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\final_data_800d_60m_p00
+[build_wide_abt] output_dir : E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\thesis_wide_abt_800d_60m_p00
+[build_wide_abt] Step 1a: loading 60 abt_base files (behavioral window only)
+[build_wide_abt]   behavioral rows loaded: 15,932,000
+[build_wide_abt] Step 1b: loading accounts.csv
+[build_wide_abt]   1,460,800 account rows
+[build_wide_abt] Step 1c: loading transactions.csv
+[build_wide_abt]   29,266,484 transaction rows
+[build_wide_abt] Step 1d: filtering burn-in cohorts (drop fin_period < 202509)
+[build_wide_abt]   rows  before: 15,932,000  after: 11,247,200  dropped: 4,684,800
+[build_wide_abt]   aids  before: 1,460,800  after: 1,070,400  dropped: 390,400
+[build_wide_abt] Step 2: building origination snapshot (offset == 0)
+[build_wide_abt]   1,070,400 aids with origination row
+[build_wide_abt] Step 3: eligibility filter
+[build_wide_abt]   Check A -- full 12-month history : 803,200 pass, 267,200 fail
+[build_wide_abt]   Check B -- early WRITE_OFF       : 94 fail
+[build_wide_abt]   Eligible : 803,106 / 1,070,400 total aids
+[build_wide_abt] Step 4: flattening behavioral features (months 1-12)
+[build_wide_abt]   behavioral pivot: 803,106 aids x 204 feature columns
+[build_wide_abt] Joined origination + behavioral: (803106, 244)
+[build_wide_abt] Step 5: computing aggregate features
+[build_wide_abt] Step 6: building 12-month default target
+[build_wide_abt]   simulation last period: 202905
+[build_wide_abt]   WRITE_OFFs in target window (months 13-24): 8,081
+[build_wide_abt]   default=1: 8,081 | default=0: 526,726 | censored (NaN): 268,299
+[build_wide_abt] Step 7: adding observation_status, split, obs_period
+[build_wide_abt]   split counts -- train: 389,525  oot: 144,789  exclude (will be dropped): 268,792
+[build_wide_abt]   train range : 202509 <= fin_period <= 202612
+[build_wide_abt]   oot   range : 202612 <  fin_period <= 202706
+[build_wide_abt] Step 7b: loading summary_abt rolling stats at obs_period
+[build_wide_abt]   summary_abt_202609.csv: 519,567 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202610.csv: 527,708 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202611.csv: 534,898 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202612.csv: 542,248 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202701.csv: 549,314 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202702.csv: 554,839 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202703.csv: 561,395 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202704.csv: 567,388 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202705.csv: 573,096 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202706.csv: 577,981 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202707.csv: 582,999 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202708.csv: 587,908 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202709.csv: 592,241 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202710.csv: 596,693 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202711.csv: 600,602 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202712.csv: 604,214 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202801.csv: 607,764 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202802.csv: 610,754 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202803.csv: 614,038 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202804.csv: 616,721 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202805.csv: 619,770 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202806.csv: 622,221 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202807.csv: 624,830 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202808.csv: 627,126 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202809.csv: 629,110 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202810.csv: 631,197 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202811.csv: 632,686 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202812.csv: 634,544 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202901.csv: 636,069 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202902.csv: 636,223 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202903.csv: 637,760 rows, 48 rolling-stat cols
+[build_wide_abt]   summary_abt_202904.csv: 638,679 rows, 48 rolling-stat cols
+[build_wide_abt]   WARNING: summary_abt_202905.csv not found -- skipping period 202905
+[build_wide_abt]   combined: 1,273,967 unique aids, 48 stat cols
+[build_wide_abt]   WARNING: 1 obs_period(s) had no file: [202905]
+[build_wide_abt] After summary_abt join: (803106, 302)
+[build_wide_abt] Step 8a: selecting final columns
+[build_wide_abt] Step 8: data cleaning (drop / winsorise / impute)
+[build_wide_abt]   8A: dropped 63 constant cols
+[build_wide_abt]   8B: dropped 26 sparse cols
+[build_wide_abt]   8A+8B total dropped: 89 cols
+[build_wide_abt]   8C: winsorised 9 act_dueinc cols at 99th pct (train-fit)
+[build_wide_abt]   8D: imputed 22 agr cols with train median
+[build_wide_abt]   After cleaning: 803,106 rows x 192 cols
+[build_wide_abt] Step 9: dropping rows with split == 'exclude'
+[build_wide_abt]   rows  before: 803,106  after: 534,314  dropped: 268,792
+[build_wide_abt]     censored in range (drop)        : 0
+[build_wide_abt]     post-target-window cohort (drop): 268,792
+[build_wide_abt] Writing E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\thesis_wide_abt_800d_60m_p00\thesis_wide_abt.csv  (534,314 rows x 192 cols)
+[build_wide_abt] Writing E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\thesis_wide_abt_800d_60m_p00\thesis_wide_abt_report.txt
+[build_wide_abt] Done

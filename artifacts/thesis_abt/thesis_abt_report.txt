@@ -1,0 +1,117 @@
+thesis_abt report
+============================================================
+Source run dir : E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\examples\thesis_baseline\runs\thesis_baseline
+Output CSV     : E:\Study\rl-debt-collection\.claude\worktrees\funny-dubinsky\artifacts\thesis_abt\thesis_abt.csv
+Rows in ABT    : 91,300
+
+Split counts
+------------------------------------------------------------
+  train (terminated) : 53,061
+  oot   (censored)   : 38,239
+  censoring rate     : 0.4188
+
+observation_status distribution
+------------------------------------------------------------
+  defaulted  : 3,522
+  closed     : 49,539
+  censored   : 38,239
+
+Target (train set)
+------------------------------------------------------------
+  default_flag=1 : 3,522
+  default_flag=0 : 49,539
+  default rate   : 0.0664
+
+Economics on defaulted accounts
+------------------------------------------------------------
+  ead  min / mean / max : 1,104 / 6,539.2 / 34,850
+  lgd  min / mean / max : 0.3333 / 0.6451 / 1.0000
+
+Data quality — missing values
+------------------------------------------------------------
+  default_flag         : 38,239 null (expected 38,239)
+  lgd                  : 87,778 null (expected 87,778)
+  period_terminal      : 38,239 null (expected 38,239)
+  no unexpected nulls
+
+Known redundancies (kept intentionally — sanity check)
+------------------------------------------------------------
+  app_loan_amount == loan_amount : OK
+  app_n_installments == n_installments : OK
+  app_nom_branch ↔ branch : branch not retained post-join
+
+Schema: 36 columns, in order:
+------------------------------------------------------------
+   1. aid
+   2. cid
+   3. fin_period
+   4. app_income
+   5. app_loan_amount
+   6. app_n_installments
+   7. app_nom_branch
+   8. app_nom_gender
+   9. app_nom_job_code
+  10. app_number_of_children
+  11. app_nom_marital_status
+  12. app_nom_city
+  13. app_nom_home_status
+  14. app_nom_cars
+  15. app_spendings
+  16. act_age
+  17. act_cc
+  18. act_loaninc
+  19. act_cus_seniority
+  20. act_cus_n_loans_hist
+  21. act_cus_n_statC
+  22. act_cus_n_statB
+  23. act_cus_n_loans_act
+  24. act_cus_utl
+  25. act_cus_dueutl
+  26. act_cus_cc
+  27. installment
+  28. n_installments
+  29. loan_amount
+  30. default_flag
+  31. ead
+  32. lgd
+  33. paid_fraction
+  34. observation_status
+  35. split
+  36. period_terminal
+
+Enrichment -- profit columns
+------------------------------------------------------------
+  Rate assumption (base case)    : r = 0.10 (annual net interest margin)
+  Sensitivity rates              : r = ['0.05', '0.08', '0.10', '0.12', '0.15']
+
+  Step 1 -- lgd null fix:
+    lgd nulls before : 0
+    lgd nulls after  : 0  (0 = fixed)
+
+  Step 2 -- profit columns added:
+    profit_r5             (r=0.05)
+    profit_r8             (r=0.08)
+    profit_r10            (r=0.10)
+    profit_r12            (r=0.12)
+    profit_r15            (r=0.15)
+    profit_if_approved  = profit_r10 (base case alias)
+    OOT rows (null)     : 38,239
+
+  Train-set summary (default_flag known):
+    n_train              : 53,061
+    n_defaulted          : 3,522
+    n_non-defaulted      : 49,539
+
+    Mean profit_if_approved (all train)   :    41.1148
+    Mean profit_if_approved (defaulted)   : -4565.5403
+    Mean profit_if_approved (non-default) :   368.6273
+
+  Sensitivity -- mean profit on train:
+    r=0.05  profit_r5           :  -130.9647
+    r=0.08  profit_r8           :   -27.7170
+    r=0.10  profit_r10          :    41.1148
+    r=0.12  profit_r12          :   109.9467
+    r=0.15  profit_r15          :   213.1944
+
+  Breakeven rate (mean profit = 0): r* = 0.0881 (8.81%)
+  Note: at base case r=0.10, portfolio is profitable but close to breakeven.
