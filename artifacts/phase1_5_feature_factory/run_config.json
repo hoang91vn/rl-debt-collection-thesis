@@ -1,0 +1,68 @@
+{
+  "phase": "1.5 Feature Factory",
+  "timestamp": "2026-05-07T09:28:39",
+  "seed": 42,
+  "input_csv": "artifacts\\thesis_wide_abt_800d_60m_p00\\thesis_wide_abt.csv",
+  "output_dir": "artifacts\\phase1_5_feature_factory",
+  "input_rows": 534314,
+  "input_cols": 190,
+  "drop_cols": [
+    "app_loan_amount",
+    "app_n_installments"
+  ],
+  "dup_info": {
+    "app_loan_amount_vs_loan_amount": "perfect_equality",
+    "app_n_installments_vs_n_installments": "perfect_equality"
+  },
+  "aliases": {
+    "age": "act_age",
+    "loan_amount": "loan_amount",
+    "n_installments": "n_installments",
+    "installment": "installment",
+    "split": "split"
+  },
+  "behavioral_series_count": 13,
+  "numeric_originals_count": 177,
+  "total_columns_after": 2236,
+  "total_features_generated": 2046,
+  "raw_feature_count_excluding_id_target_split": 2229,
+  "save_format": "parquet",
+  "validation": {
+    "row_count_unchanged": true,
+    "no_infinities": true,
+    "catalog_completeness": true,
+    "uses_target_count": true
+  },
+  "f5a_fallback_per_feature_sample": {
+    "mean_income_by_job_code": {
+      "oot_unseen_groups": 0,
+      "oot_total": 144789,
+      "fallback_rate": 0.0
+    },
+    "mean_income_by_branch": {
+      "oot_unseen_groups": 0,
+      "oot_total": 144789,
+      "fallback_rate": 0.0
+    },
+    "mean_income_by_city": {
+      "oot_unseen_groups": 0,
+      "oot_total": 144789,
+      "fallback_rate": 0.0
+    },
+    "mean_income_by_marital_status": {
+      "oot_unseen_groups": 0,
+      "oot_total": 144789,
+      "fallback_rate": 0.0
+    },
+    "mean_income_by_home_status": {
+      "oot_unseen_groups": 0,
+      "oot_total": 144789,
+      "fallback_rate": 0.0
+    }
+  },
+  "f5a_fallback_overall": {
+    "oot_features": 37,
+    "max_fallback_rate": 0.0,
+    "mean_fallback_rate": 0.0
+  }
+}

@@ -28,5 +28,13 @@ examples/thesis_baseline/runs/
 artifacts/final_data_800d_60m_p00/transactions.csv
 artifacts/final_data_800d_60m_p00/accounts.csv
 artifacts/final_data_800d_60m_p00/collection_actions.csv
+artifacts/final_data_800d_60m_p00/clients.csv
 artifacts/final_data_800d_60m_p00/abt_base_*.csv
 artifacts/final_data_800d_60m_p00/summary_abt_*.csv
+
+# Phase 1.5 expanded ABT (2.4 GB parquet) — only metadata/catalog tracked
+artifacts/phase1_5_feature_factory/thesis_wide_abt_expanded.parquet
+artifacts/phase1_5_feature_factory/thesis_wide_abt_expanded.csv.gz
+
+# _recovery dev scripts — local-only, used during diagnostic phases
+_recovery/
