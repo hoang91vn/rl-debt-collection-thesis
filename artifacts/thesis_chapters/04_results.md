@@ -1,0 +1,757 @@
+# Chapter 4 — Empirical Results
+
+This chapter reports the empirical results obtained by applying the
+methodology of Chapter 3 to the locked production-run data. Seven
+sections trace the analytical chain that the thesis hypothesis demands:
+from PD model performance (§4.1) through base economic measurement
+(§4.2), economic stress testing (§4.3), bootstrap statistical robustness
+(§4.4), PD-quality stress (§4.5), operational-cost robustness (§4.6),
+and the combined stress that produces the chapter's refined thesis
+claim (§4.7). Every section is structured as *setup → results →
+interpretation → transition*: the interpretation paragraphs answer the
+question *"why does this empirical finding matter for the thesis?"*
+rather than restating numbers. The chapter's overall argument is that
+profit-driven cut-off selection produces strictly higher dollar profit
+than Youden's J in every cell of the tested stress space, and that the
+margin of advantage is largest precisely when the underlying PD signal
+is weakest.
+
+The chapter follows the phrasing rules of Chapter 3 throughout:
+*across N resamples* and *within the tested scenario space* in place of
+true probability statements, and explicit acknowledgement of boundary
+conditions wherever the data permits a counter-example.
+
+---
+
+## 4.1 PD Modelling Results
+
+### Setup
+
+Phase 2 deploys the dual-track PD modelling architecture described in
+Section 3.3 against the 534,314-row Phase-2-filtered modelling
+population. Within the linear track, the three-stage selection pipeline
+(Stage 1 univariate prescreening → Stage 2 single-fit Lasso → Stage 3
+statsmodels logit refinement) reduces the 435-feature PD-eligible pool
+sequentially to 120 Stage-1 survivors, 64 Stage-2 survivors, and a
+final 22-feature Logistic Regression in the full-F6E variant or 7
+features in the no-F6E variant (Table 4.1). The non-linear track is
+LightGBM tuned by 30 Optuna trials with the temporal calibration cohorts
+202611-202612 used for early stopping; the best trial yields
+`best_iteration = 141` and removes F6D random-noise features from the
+top-20 by gain. All four base models are calibrated by Platt scaling
+fitted on the 21,465-row calibration slice (cohorts 202611-202612), with
+the OOT cohorts 202701-202706 untouched until evaluation.
+
+**Table 4.1 — Linear-track Stage 1/2/3 selection funnel**
+
+| Stage | Filter | Survivors |
+|-------|--------|----------:|
+| Pool | `allowed_for_origination_pd` ∧ `leakage_risk ≠ high` ∧ no target / no future behaviour | 435 |
+| Stage 1 | sparsity, variance, univariate Gini ≥ 0.02, stability | 120 |
+| Stage 2 | single-fit Lasso `C = 0.05`, 100k stratified train sub-sample | 64 |
+| Stage 3 (full-F6E) | VIF + `p < 0.05` filter | **22** |
+| Stage 3 (no-F6E) | same, applied to the F6E-excluded variant | **7** |
+
+Source: `phase2_modeling_report.md`, `test1_f6e_ablation.json`.
+
+### Results
+
+Table 3.4a (Chapter 3) reports the discrimination metrics on the full
+OOT split (n = 144,789, all tenors). LightGBM tuned dominates with OOT
+AUC 0.898, Gini 0.795, and KS 0.638; the LR full-F6E is second with AUC
+0.859 and Gini 0.718; the LR no-F6E and Scorecard no-F6E variants form
+the parsimonious tail at AUC 0.836 and 0.803 respectively. Table 3.4b
+(Chapter 3) reports the calibration verification on the eco-OOT subset
+(n = 64,027, 24m and 36m only, post-Platt). On this population the
+LightGBM and Scorecard under-predict the empirical 1.92% base rate by
+roughly a factor of two (predicted-to-observed ratios 0.49 and 0.48
+respectively, both flagged ⚠ in Table 3.4b), while the two LR variants
+are within 8% of the empirical rate.
+
+The F6D negative-control gate, designed to detect leakage of pure-noise
+features through the selection pipeline, was satisfied across the full
+nine-cell stability sweep (Lasso `C ∈ {0.02, 0.05, 0.10}` × seeds
+`{42, 101, 202}`): zero F6D survivors in 9 of 9 configurations. After
+the LightGBM retune, no F6D feature appears in the top-20 by gain
+importance, although small non-zero gains appear deeper in the
+importance distribution as a normal consequence of moderate
+regularisation. This pipeline-integrity check is what allows the
+downstream economic and stress-testing chapters to attribute observed
+profit differences to the locked formulas and the calibrated PDs rather
+than to leaked noise.
+
+### Interpretation
+
+The dual-track architecture yields four PD models that span the
+*interpretability versus discrimination* trade-off space: the 7-feature
+LR no-F6E and the 7-feature WoE Scorecard offer the most parsimonious
+decision surfaces, the 22-feature LR full-F6E adds synthetic
+bureau-style features for incremental discrimination, and LightGBM
+captures non-linear interactions for the highest discriminative ceiling.
+This spread is not redundant for the thesis hypothesis: each subsequent
+chapter section uses the LightGBM tuned + Platt scores as the *primary*
+PD input, but the multi-model comparison enables a robustness
+triangulation that shows the central finding (profit-driven cut-off
+beats Youden in dollar terms) holds across model architectures with
+substantially different discrimination and calibration profiles. The
+calibration design in particular — Platt scaling fitted on a strictly
+training-period slice — is what permits the eco-population profit
+framework to use OOT data for evaluation without OOT contamination of
+the PD-to-probability mapping. Without that leak-free design the
+bootstrap CIs of §4.4 would be meaningless because they would in part
+quantify in-sample fit rather than genuine out-of-time generalisation.
+
+The next section turns from PD discrimination, which is necessary but
+not the thesis question, to the lifetime economic framework in which
+the question is actually answered.
+
+---
+
+## 4.2 Base Economic Results (Phase 3.1B)
+
+### Setup
+
+The Phase 3.1B base economic run applies the locked tenor-aware Lifetime
+Net Margin formulas (Section 3.4) to the 235,968-row economic-eligible
+population (24-month and 36-month loans only, after the structural
+exclusion of 12-month loans documented in Section 3.4). The base
+scenario uses the LightGBM tuned + Platt PD as input, the locked tiered
+APR schedule (Section 3.6), LGD = 0.65, `op_cost_annual = 0`, and
+`discount_annual = 0`. For each account the framework computes Lifetime
+Expected Loss (`LT_EL`), Lifetime Margin gross of credit loss
+(`LT_margin`), and Expected Net Profit (`LT_margin − LT_EL`); the ASB
+single-period benchmark is computed in parallel for direct comparison.
+The full 235,968-row table is materialised at
+`artifacts/economic_framework/economics_per_account.parquet` (15 MB).
+
+### Results
+
+The per-account distributions are summarised in Table 4.2. Both LT_EL
+and Expected Profit are heavily right-skewed (medians substantially
+below means), which is expected given the right-skewed PD distribution
+in the underlying portfolio.
+
+**Table 4.2 — Base-scenario per-account distributions (n = 235,968,
+primary LightGBM Platt PD, tiered APR, LGD = 0.65)**
+
+| Statistic | LT_EL | LT_margin | Expected_Profit |
+|-----------|------:|----------:|----------------:|
+| p1 | $0.04 | $295.72 | $293.22 |
+| p25 | $3.61 | $728.37 | $714.12 |
+| Median | $13.00 | $1,179.79 | $1,150.71 |
+| p75 | $46.93 | $1,972.23 | $1,897.87 |
+| p99 | $817.94 | $6,366.36 | $5,831.05 |
+| Mean | $62.95 | $1,556.02 | **$1,493.07** |
+| Standard deviation | $164.85 | $1,244.45 | $1,150.08 |
+| Share Expected Profit > 0 | — | — | **100.000%** |
+| Worst-case account profit | — | — | **+$264.30** |
+
+Source: `artifacts/economic_framework/economics_per_account.parquet`.
+
+The total portfolio Expected Profit at base parameters is $352.3M
+across the 235,968 accounts. The tenor-stratified breakdown (Table 4.3)
+shows that the 100,853 36-month loans contribute $221.9M of total
+profit (63%) despite being only 43% of the count: longer tenor
+generates more lifetime interest revenue at comparable credit risk,
+because the constant-hazard extrapolation (Section 3.4) increases EL
+with tenor sub-linearly relative to the linear scaling of revenue.
+
+**Table 4.3 — Tenor-stratified base economics (LightGBM Platt PD,
+tiered APR, LGD = 0.65)**
+
+| Tenor | n | Mean PD | Mean loan | Mean Profit | Total Profit |
+|-------|--:|--------:|----------:|------------:|-------------:|
+| 24m | 135,115 | 0.95% | $5,946 | $965 | $130.4M |
+| 36m | 100,853 | 0.92% | $8,944 | $2,200 | $221.9M |
+| Combined | 235,968 | 0.95% | $7,228 | $1,493 | $352.3M |
+
+The ASB single-period benchmark (Figure 4) systematically understates
+total portfolio profit relative to the tenor-aware Lifetime formula.
+For 24-month loans the ASB total of $118.1M is 91% of the Lifetime
+total ($130.4M), an understatement of approximately 9%. For 36-month
+loans the ASB total of $132.9M is 60% of the Lifetime total
+($221.9M), an understatement of approximately 40%. The combined ASB
+total of $250.9M is 71% of the Lifetime $352.3M.
+
+![Figure 4 — ASB single-period benchmark vs tenor-aware Lifetime Net Margin (Phase 3.1B base economics)](artifacts/figures/fig4_asb_vs_lifetime.png)
+
+### Interpretation
+
+The base scenario yields a portfolio in which 100% of accounts have
+positive Expected Profit. This is a *saturated* outcome: at zero
+operating cost and the locked tiered APR schedule, even the worst
+account in the population (Expected Profit +$264.30) is profitable. A
+profit-optimal cut-off applied to this base scenario therefore
+*degenerates* to "approve everyone" — there is no interior optimum
+because the cumulative profit curve is monotonically increasing.
+
+Why does this saturated outcome still matter for the thesis? Because it
+establishes the *upper bound* of the framework's value — the ceiling
+case in which costs are zero, APR is risk-priced at the locked tiers,
+and PD is the as-calibrated PRIMARY model. Subsequent sections push
+each of these dimensions away from the ceiling and observe how the
+profit-driven cut-off responds; the comparison against the saturated
+base case is what gives the stress-test results their interpretive
+anchor. The 100% profitability also rules out an alternative
+explanation for the eventual finding that profit cut-off beats Youden:
+that explanation cannot be "Youden rejects profitable accounts that
+would have been kept by profit". Under the saturated base case Youden
+*does* reject ~20% of the population (Section 4.4 reports Youden's J
+approval rate ≈ 79.6% on the eco-OOT subset across all anchors), and
+those 20% are uniformly profit-positive. The framework's first piece of
+evidence is therefore that the discrimination-driven cut-off leaves
+unambiguously profitable business on the table.
+
+The ASB benchmark gap is the second base-case observation that matters.
+The 9% understatement on 24-month loans and 40% understatement on
+36-month loans are not noise; they reflect a structural difference
+between a single-period formula that ignores amortization and a
+tenor-aware formula that applies declining-balance interest over the
+full loan life. A thesis that adopted ASB as its main economic measure
+would systematically prefer shorter-tenor portfolios for arithmetic
+reasons rather than economic ones, because the relative understatement
+shrinks as tenor approaches one year. By committing to the tenor-aware
+Lifetime formula the thesis avoids importing this bias into the cut-off
+analysis.
+
+The next section pushes the framework off the saturated base by varying
+five economic dimensions across a 576-cell stress grid, observing where
+the profit-optimal cut-off becomes interior.
+
+---
+
+## 4.3 Stress Test Results (Phase 3.2)
+
+### Setup
+
+The Phase 3.2 stress grid evaluates 576 cells crossing five dimensions:
+PD multiplier `{1, 2, 3, 5}` (which acts as a portfolio-level risk
+amplifier on the calibrated PD), cost of funds `{0.00, 0.03, 0.06}`,
+acquisition cost `{$0, $250, $500}`, LGD `{0.55, 0.65, 0.75, 0.85}`,
+and APR strategy `{tiered_uncapped, tiered_cap_24, flat_18, flat_24}`.
+Operating cost is held at zero throughout this grid (it is treated as a
+separate primary lever in §4.6 below). Each cell produces a
+profit-optimal approval rate `k*`, a profit-optimal PD threshold, the
+total Expected Profit at `k*`, the corresponding Youden's J approval
+rate, and the cut-off gap (profit `k*` minus Youden's J approval rate
+in percentage points). Cells are classified into *approve-all*
+(`k* ≥ 99%`), *interior* (`50% ≤ k* < 99%`), and *reject-most*
+(`k* < 50%`).
+
+### Results
+
+The 576-cell distribution is summarised in Table 4.4. The stress grid
+contains 220 approve-all cells (38.2%), 356 interior cells (61.8%), and
+zero reject-most cells. The fact that the majority class is *interior*
+rather than approve-all is the key contrast with the saturated base
+scenario: realistic stress on the economic dimensions reliably moves
+the framework off the ceiling, producing genuine cut-off optimisation
+problems. The driver hierarchy (Figure 9) shows that PD multiplier and
+APR strategy together account for the bulk of `k*` movement, while LGD,
+acquisition cost, and cost of funds play smaller marginal roles within
+the tested grid.
+
+![Figure 9 — Driver hierarchy: single-dimension `k*` spread across the Phase 3.2 576-cell stress grid](artifacts/figures/fig9_sensitivity_hierarchy.png)
+
+**Table 4.4 — Phase 3.2 576-cell stress grid summary**
+
+| Metric | Value |
+|--------|------:|
+| approve-all cells (`k* ≥ 99%`) | 220 (38.2%) |
+| **interior cells (`50% ≤ k* < 99%`)** | **356 (61.8%)** |
+| reject-most cells (`k* < 50%`) | 0 |
+| Minimum `k*` | 84.73% (adverse anchor cell) |
+| Median `k*` | 98.24% |
+| Maximum `k*` | 100.00% |
+| **Cells with profit cut-off > Youden** | **576 / 576** |
+| Median cut-off gap | +18.83 pp |
+| Cut-off gap range | [+5.33 pp, +20.59 pp] |
+
+Source: `artifacts/economic_framework/economic_stress_grid.parquet`.
+
+**Table 4.5 — Driver hierarchy (single-dimension spread on `k*`)**
+
+| Parameter | Spread on `k*` (pp) |
+|-----------|--------------------:|
+| PD multiplier | 3.54 |
+| APR strategy | 2.32 |
+| LGD | 1.28 |
+| Acquisition cost | 0.43 |
+| Cost of funds | 0.43 |
+
+Source: Phase 3.2 driver analysis; visualised in Figure 9.
+
+The four anchor scenarios introduced in Section 3.5 (Table 3.6) are
+chosen from the grid to span its classification range: the
+optimistic_base anchor reproduces the saturated base case (`k* = 100%`),
+the realistic_central_boundary anchor sits at `k* = 99.25%` — exactly
+on the approve-all/interior boundary, the moderate_interior anchor at
+`k* = 95.31%` (a clean interior representative), and the adverse_stress
+anchor at `k* = 84.73%` (the minimum of the grid). All 576 cells —
+including the harshest configuration of the grid — produce a profit
+cut-off that is more permissive in approval-rate terms than Youden's J,
+with cut-off gaps ranging from +5.33 percentage points (the most
+adverse cell) to +20.59 percentage points (the optimistic cells), and a
+median of +18.83 percentage points across the grid.
+
+### Interpretation
+
+The 38/62 split between approve-all and interior cells matters because
+it answers the natural sceptical reaction to the §4.2 saturated base:
+*does this framework only ever say "approve everyone"?* The empirical
+answer is no — once realistic costs are introduced (PD multiplier
+above 1, non-zero cost of funds, non-zero acquisition cost), the
+profit-optimal cut-off moves interior in the majority of tested
+configurations. The framework therefore performs genuine optimisation
+in the regime that matches the practical reality of unsecured consumer
+lending economics; it is not a degenerate "always approve" rule
+disguised as optimisation.
+
+The driver hierarchy carries a complementary message. The 3.54 pp
+spread attributable to PD multiplier and the 2.32 pp spread
+attributable to APR strategy together dominate the per-loan and
+per-period cost dimensions (LGD 1.28 pp, acquisition cost 0.43 pp,
+cost of funds 0.43 pp). For a thesis whose central question is
+profit-driven cut-off selection, this means the *portfolio risk level*
+and the *pricing strategy* are the dominant levers, not the marginal
+costs. This finding is robust within the tested scenario space and
+reinforces the value of the PD-multiplier sensitivity that Phase 3 and
+4 use as a primary stress dimension.
+
+Finally, the 576/576 cells in which profit cut-off exceeds Youden's J
+in approval-rate terms is a strong signal — but it is a signal about
+*direction*, not about *dollar value*. §4.7 shows that direction can
+flip in extreme stress while dollar value remains positive; the
+relationship between direction and value is the central refinement that
+the chapter accumulates toward.
+
+The next section moves from the 576-cell point estimates to the
+bootstrap CIs that quantify the within-OOT sampling uncertainty around
+the four anchor scenarios.
+
+---
+
+## 4.4 Bootstrap CI Results (Phase 4.1)
+
+### Setup
+
+The Phase 4.1 bootstrap quantifies sampling uncertainty in the cut-off
+metrics within the OOT economics population (n = 64,027). One thousand
+resamples are drawn with replacement, *stratified by tenor* (the 24-month
+and 36-month proportions are preserved exactly in every resample), with
+`random_state = 42`. For each (resample × anchor) pair the framework
+recomputes the full economic pipeline and records eight metrics:
+profit at the profit-optimal cut-off, the profit-optimal approval rate
+`k*`, the profit-optimal PD threshold, profit at the Youden's J cut-off,
+the Youden approval rate, the cut-off gap in percentage points, the
+dollar profit uplift, and the percentage profit uplift. Across the four
+anchor scenarios this produces 4,000 (anchor × resample) records, all
+materialised at `artifacts/economic_framework/bootstrap_anchor_results.parquet`.
+
+### Results
+
+Table 4.6 expands Table 3.7 (Chapter 3) with the dollar-uplift CIs
+alongside the approval-rate CIs.
+
+**Table 4.6 — Bootstrap 95% CIs for cut-off metrics (1,000 stratified
+resamples × 4 anchors, OOT n = 64,027)**
+
+| Anchor | `k*` approve % (95% CI) | Cut-off gap (pp, 95% CI) | Profit uplift ($M, 95% CI) | Uplift % (mean) |
+|--------|-------------------------:|--------------------------:|---------------------------:|----------------:|
+| optimistic_base | 100.00 [100.00, 100.00] | +20.41 [+20.10, +20.71] | $30.75 [$30.17, $31.31] | 47.05% |
+| realistic_central_boundary | 99.25 [99.16, 99.36] | +19.66 [+19.36, +19.97] | $17.75 [$17.39, $18.13] | 38.37% |
+| moderate_interior | 95.31 [94.99, 95.50] | +15.72 [+15.35, +16.02] | $5.46 [$5.29, $5.63] | 11.16% |
+| adverse_stress | 84.83 [84.31, 85.27] | +5.24 [+4.79, +5.64] | $0.46 [$0.41, $0.51] | 1.51% |
+
+Source: `artifacts/economic_framework/bootstrap_ci_summary.csv`.
+The underlying cumulative profit curves for the four anchors —
+with the profit-optimal `k*` (○) and Youden's J (×) markers
+identifying the two cut-off rules — are shown in Figure 1, and
+the per-anchor density of profit uplift with the 2.5%, 50%, and
+97.5% percentile lines is visualised in Figure 5.
+
+![Figure 1 — Cumulative profit curves per anchor with profit-optimal `k*` (○) and Youden's J (×) markers (Phase 4.1 OOT)](artifacts/figures/fig1_profit_curves.png)
+
+Three observations are immediate. First, the per-anchor confidence
+intervals are tight relative to the inter-anchor gaps: the
+moderate_interior `k*` interval [94.99%, 95.50%] does not approach the
+99% boundary, and the adverse_stress `k*` interval [84.31%, 85.27%] is
+a full 14 percentage points below it. The categorical classifications
+(approve-all vs interior) are therefore robust to within-OOT sampling
+uncertainty rather than being knife-edge artefacts. Second, the
+realistic_central_boundary anchor's `k*` interval [99.16%, 99.36%]
+sits *entirely above* the 99% threshold, so the boundary classification
+is statistically tight rather than the result of a 50/50 coin flip
+across the threshold. Third, every dollar-uplift CI is strictly
+positive, with the lower bounds ranging from $0.41M (adverse stress)
+to $30.17M (optimistic base).
+
+Across the 4,000 (anchor × resample) combinations, profit uplift
+remained strictly greater than zero in 4,000 of 4,000 combinations.
+This is the strongest within-OOT sampling-based evidence the bootstrap
+framework can generate for the central thesis hypothesis [TODO: cite
+Efron & Tibshirani 1993 percentile bootstrap method].
+
+### Interpretation
+
+Why does CI tightness matter for thesis-claim defence? Because the
+chapter's eventual claim — that profit-driven cut-offs strictly beat
+Youden's J in dollar terms — must be defensible against the obvious
+counter-argument that the observed margin is sampling noise. The CIs
+in Table 4.6 rule out that counter-argument within the OOT population:
+the lower bound of the dollar uplift never crosses zero, and the
+classification of each anchor is preserved across all 1,000 of its
+resamples. The thesis can therefore make the statistical claim
+*"across 1,000 stratified bootstrap resamples of the OOT economics
+population, profit uplift over Youden's J held strictly positive in
+1,000 of 1,000 resamples for each of the four anchor scenarios,"* and
+this claim is empirical rather than asymptotic.
+
+The CI tightness also enables a refinement of the framing. A weaker
+formulation — "profit cut-off is more permissive than Youden" — is
+directionally correct for these four anchors but vulnerable to the
+counter-example finding in §4.7 where direction flips in five extreme
+cells. The stronger formulation — "profit cut-off strictly beats
+Youden in dollar terms" — survives both the bootstrap evidence here
+and the stress-direction evidence in §4.7. Choosing the stronger
+formulation is what permits the chapter's refined claim in §4.7 to be
+both more accurate and more robust than a direction-only claim.
+
+The bootstrap quantifies sampling uncertainty *within* the OOT
+population only and does not capture (i) PD model uncertainty across
+alternative hyperparameters, (ii) calibration drift across cohorts
+beyond 202706, (iii) APR / LGD / cost-of-funds assumption uncertainty,
+or (iv) formula choice uncertainty. These four omitted uncertainty
+sources are documented in §3.6 and in Limitations §10. The bootstrap
+component is necessary for thesis-claim defence but not sufficient on
+its own; the stress tests in §4.5, §4.6, and §4.7 cover the assumption
+and PD-quality components in turn.
+
+The next section turns to one of those omitted components — PD
+discrimination quality — and tests whether the profit-vs-Youden finding
+holds when the PD signal is degraded.
+
+---
+
+## 4.5 PD Quality Stress (Phase 4.2 PART A)
+
+### Setup
+
+The Phase 4.2 PART A study tests whether the profit-vs-Youden finding
+survives a degraded PD signal. The PRIMARY LightGBM Platt-calibrated
+PD is perturbed using `src/calibration.py:perturb_to_target_gini`,
+which adds Gaussian noise to the logit-space score and binary-searches
+the noise standard deviation to hit a specified target Gini, then
+re-anchors the mean back to the empirical base rate so that the
+comparison isolates discrimination drift rather than mean drift. Three
+target Ginis are tested — 0.30, 0.45, 0.60 — covering a range from
+"materially degraded" (0.60) to "barely informative" (0.30). The raw
+LightGBM Platt PD has Gini ≈ 0.80 on the OOT subset. Each perturbed PD
+variant is then run through all four anchor scenarios, producing a
+16-cell sub-grid.
+
+### Results
+
+Table 4.7 reports the mean cut-off gap by Gini level across the four
+anchors. The cut-off gap *widens* monotonically as Gini falls — from a
+mean +15.5 pp at the raw Gini of 0.80 to +35.7 pp at the most degraded
+Gini of 0.30. Profit uplift over Youden remains strictly positive in
+16 of 16 cells.
+
+**Table 4.7 — Cut-off gap by PD discrimination Gini (16-cell PART A
+sub-grid, n = 64,027 OOT)**
+
+| PD variant | Achieved Gini | Mean cut-off gap (pp) | Cells with profit > Youden |
+|------------|--------------:|----------------------:|---------------------------:|
+| Raw LightGBM Platt | 0.80 | +15.5 | 4 / 4 |
+| Stressed Gini 0.60 | 0.60 | +21.2 | 4 / 4 |
+| Stressed Gini 0.45 | 0.45 | +30.8 | 4 / 4 |
+| Stressed Gini 0.30 | 0.30 | +35.7 | 4 / 4 |
+
+Source: `artifacts/pd_quality_stress/cutoffs_by_gini.csv`. Visualised
+in Figure 2.
+
+![Figure 2 — Cut-off gap as PD-signal Gini falls (Phase 4.2 PART A)](artifacts/figures/fig2_cutoff_gap_vs_gini.png)
+
+The widening pattern is monotonic in PD-discrimination Gini and
+consistent across all four anchor scenarios. The gap at Gini 0.30 is
+more than twice the gap at the raw Gini.
+
+### Interpretation
+
+This finding inverts a piece of conventional wisdom that is rarely
+stated explicitly but is implicit in standard banking practice: the
+common assumption that the value of a profit-driven cut-off framework
+is largest when the PD model is best, because a strong PD permits
+finer discrimination and therefore tighter optimisation. The Phase
+4.2 PART A evidence shows the opposite. The cut-off gap — the gap
+between the profit-optimal approval rate and the Youden's J approval
+rate — *widens* as PD discrimination falls, and the dollar uplift is
+positive across the entire tested Gini range.
+
+The mechanism is straightforward when stated explicitly. Youden's J
+maximises TPR − FPR; as the PD score's discrimination falls, the ROC
+curve flattens, and the maximising point of TPR − FPR migrates toward
+the centre of the score distribution (a cut-off that approves
+approximately the unconditional non-default share of the population).
+The profit-optimal cut-off, by contrast, is anchored to the
+*economics* of the loan: as long as the average remaining account is
+profit-positive, the optimal cut-off stays close to the full
+population. Degrading the PD therefore moves the Youden cut-off
+inward (more conservative) without much effect on the profit cut-off
+(stable near the population), so the gap between them widens.
+
+This framing is important for the thesis's contribution to the
+profit-driven credit scoring literature. The framing in the chapter
+is *portfolio risk stress expressed through a degraded PD signal* —
+not *PD model quality dominates*. The two phrases would mean
+different things: "PD model quality" suggests an architectural
+comparison (e.g., logistic vs gradient boosted) which this study does
+not perform, while "portfolio risk stress through a degraded signal"
+captures the actual experimental design (the same primary model, with
+its discriminative content artificially attenuated). The novel thesis
+contribution is therefore the demonstration that *the lower the
+informativeness of the PD signal a bank holds, the larger the dollar
+opportunity from switching from a discrimination-anchored cut-off to
+a profit-anchored cut-off*. Within the tested scenario space, banks
+operating with weaker PDs leave proportionally more value on the table
+by using Youden than banks with stronger PDs.
+
+The next section turns from PD-quality stress (signal informativeness)
+to operating-cost stress (a different category of stress entirely)
+and tests whether the profit framework retains its sophistication
+under severe cost regimes.
+
+---
+
+## 4.6 Operating-cost Robustness (Phase 4.2 PART B)
+
+### Setup
+
+The Phase 4.2 PART B study varies operating cost across the four-level
+grid `{0.00, 0.01, 0.02, 0.04}` for three of the four anchor scenarios
+(realistic_central_boundary, moderate_interior, adverse_stress). The
+optimistic_base anchor is omitted from this PART because at zero costs
+across all dimensions it is invariant under operating cost in a
+trivial sense. For each (anchor × op_cost) cell the framework records
+mean profit per account, total profit, share of accounts with positive
+expected profit, the profit-optimal approval rate `k*`, and the cut-off
+gap relative to Youden's J. Op_cost levels were chosen to span the
+practical range of consumer-lending operations (1-4% of outstanding per
+year is a common range cited in industry literature [TODO: cite
+banking operating-cost benchmarks — HIGH PRIORITY: a defensible
+citation here is required because reviewers may ask whether the 4%
+upper bound is realistic or artificially chosen to force the
+reject-most regime; candidate sources include consumer-finance
+operational expense ratios, unsecured-lending servicing-cost
+literature, fintech-vs-traditional-lender cost-structure comparisons,
+and annual-report benchmarks from Discover, Capital One, or
+equivalent issuers]).
+
+### Results
+
+Table 4.8 reports the per-cell results for the 12-cell op_cost grid.
+Op_cost has substantial impact on `k*` and on mean profit, with the
+strongest effects in the adverse_stress anchor.
+
+**Table 4.8 — Op_cost robustness (12-cell PART B sub-grid, n = 64,027 OOT)**
+
+| Anchor | op_cost | `k*` (%) | Mean profit | Total profit | Share > 0 | Category |
+|--------|--------:|---------:|------------:|-------------:|----------:|----------|
+| realistic_central_boundary | 0.00 | 99.26 | $998 | $63.9M | 96.8% | approve-all |
+| realistic_central_boundary | 0.01 | 98.94 | $819 | $52.4M | 93.1% | interior |
+| realistic_central_boundary | 0.02 | 98.74 | $640 | $41.0M | 87.4% | interior |
+| realistic_central_boundary | 0.04 | 97.74 | $283 | $18.1M | 52.8% | interior |
+| moderate_interior | 0.00 | 96.33 | $1,061 | $68.0M | 95.6% | interior |
+| moderate_interior | 0.01 | 95.72 | $885 | $56.6M | 94.6% | interior |
+| moderate_interior | 0.02 | 94.88 | $708 | $45.3M | 92.8% | interior |
+| moderate_interior | 0.04 | 90.97 | $355 | $22.7M | 80.5% | interior |
+| adverse_stress | 0.00 | 84.90 | $305 | $19.5M | 67.3% | interior |
+| adverse_stress | 0.01 | 81.28 | $132 | $8.4M | 59.2% | interior |
+| adverse_stress | 0.02 | 74.72 | -$41 | -$2.6M | 48.2% | interior |
+| **adverse_stress** | **0.04** | **0.31** | **-$387** | **-$24.8M** | **19.3%** | **REJECT-MOST** |
+
+Source: `artifacts/op_cost_robustness/cutoffs_by_op_cost.csv`. Visualised
+in Figure 3.
+
+![Figure 3 — Operating cost vs profit-optimal `k*` per anchor (Phase 4.2 PART B)](artifacts/figures/fig3_op_cost_vs_kstar.png)
+
+The tipping points in Table 4.8 quantify how each anchor responds to
+operating cost. The realistic_central_boundary anchor crosses the
+approve-all/interior boundary at op_cost = 0.01, and the
+adverse_stress anchor crosses into the reject-most regime at
+op_cost = 0.04. The reject-most cell (adverse_stress at op_cost = 0.04,
+`k* = 0.31%`, mean profit −$387, total profit −$24.8M) is the only
+reject-most cell observed in the entire 64-cell stress space tested in
+Phase 4.2.
+
+### Interpretation
+
+Why does the reject-most regime under adverse stress + op_cost = 0.04
+matter for the thesis? Because it provides the framework's
+self-falsification test. A profit-driven cut-off framework that always
+prescribed "approve more than Youden" regardless of conditions would
+be either trivial (a constant rule disguised as optimisation) or
+suspect (a systematic artefact rather than an economic finding). The
+reject-most cell shows that the framework can and does prescribe
+near-rejection when the underlying economics make most accounts
+loss-making — and it does so at the right point in parameter space:
+high PD multiplier, high LGD, low APR, high acquisition cost, *and*
+high operating cost. The framework is therefore a genuine adaptive
+optimisation rule rather than a cosmetic re-parameterisation of
+"approve-all".
+
+A second interpretive note: the only reject-most cell in 64 stress
+cells appears at the simultaneous extreme of all six stress
+dimensions (PD multiplier, LGD, APR strategy, acquisition cost, cost
+of funds, and operating cost). This is informative about the boundary of the framework's
+"keep some borrowers" regime: severe operational cost is a necessary
+ingredient, but not on its own sufficient (the moderate_interior
+anchor at op_cost = 0.04 still sits at `k* = 90.97%`). The
+combination of severe portfolio-risk stress (PD × 5, LGD 0.85),
+adverse pricing (flat 18% APR, no risk premium), high acquisition
+cost ($500), high cost of funds (6%), *and* operating cost at 4% is
+what produces the reject-most outcome. Real institutions in
+sub-prime lending typically operate under one or two of these
+extremes at a time, not all five.
+
+A third interpretive note: the adverse_stress + op_cost = 0.02 cell
+sits at `k* = 74.72%` with mean profit −$41 per account and total
+profit −$2.6M on the OOT economics population. This is an
+"interior + loss-making" regime — the framework correctly identifies
+an interior cut-off rather than collapsing to either approve-all or
+reject-most, but the optimum still has *negative* aggregate profit.
+The interior classification therefore indicates that the cut-off is
+non-trivial (the cumulative profit curve has a strict maximum away
+from the population endpoints), not that the resulting portfolio is
+profitable. This nuance reinforces that the framework's output is an
+optimisation recommendation under specified economic constraints, not
+a guarantee of profitable lending: when the underlying economics are
+loss-making, the profit-optimal cut-off minimises the loss without
+necessarily eliminating it.
+
+The next section combines the PD-quality stress dimension of §4.5 with
+the operating-cost dimension of §4.6 to assemble the chapter's refined
+thesis claim.
+
+---
+
+## 4.7 Combined Stress (Phase 4.2 PART C)
+
+### Setup
+
+The Phase 4.2 PART C combined grid crosses three Gini perturbations
+(targets 0.60, 0.45, 0.30 plus the raw 0.80) with three operating-cost
+levels (`{0.00, 0.02, 0.04}`) for three anchor scenarios
+(realistic_central_boundary, moderate_interior, adverse_stress) — a 36-cell
+combined grid that, together with the 16-cell PART A sub-grid (§4.5)
+and the 12-cell PART B sub-grid (§4.6), yields the 64-cell Phase 4.2
+stress space referenced throughout the chapter. The combined grid is
+the only place in the analysis where PD-quality stress and
+operating-cost stress are simultaneously varied; it therefore tests
+whether their effects compound or partially cancel.
+
+The PART C grid is *distinct* from the Phase 3.2 576-cell grid of §4.3
+in two ways: §4.3 holds PD multiplier as the sole risk-side stress
+lever and varies five economic dimensions (cost of funds, acquisition
+cost, LGD, APR strategy, PD multiplier), while PART C holds the
+economic dimensions at their per-anchor values and varies only PD
+discrimination Gini and operating cost. The two grids therefore probe
+different parts of the stress space and are deliberately
+non-overlapping.
+
+### Results
+
+The PART C grid produces one approve-all cell, 31 interior cells, and
+four reject-most cells. The four reject-most cells are *all* in the
+adverse_stress anchor at op_cost = 0.04, regardless of Gini level —
+consistent with the PART B finding that operating cost is the lever
+that triggers reject-most under sufficiently adverse conditions, and
+that the tipping is largely insensitive to PD-quality stress. Five
+cells in PART C have a *negative* cut-off gap (profit `k*` lower than
+Youden's J approval rate); these are the four reject-most cells plus
+one interior cell (adverse_stress at op_cost = 0.02 with the raw PD).
+
+**Table 4.9 — Phase 4.2 combined PART C grid (36 cells)**
+
+| Cell category | Count |
+|---------------|------:|
+| approve-all | 1 |
+| **interior** | **31** |
+| reject-most | 4 |
+| Cells with profit cut-off direction *more* permissive than Youden | 31 / 36 |
+| Cells with profit cut-off direction *less* permissive than Youden | 5 / 36 |
+| **Cells with profit uplift > 0** | **36 / 36** |
+
+Across the full 64-cell Phase 4.2 stress space (PART A + PART B + PART
+C), profit uplift over Youden's J is strictly positive in 64 of 64
+cells. Source: `artifacts/economic_framework/phase4_2_combined_grid.csv`,
+visualised in Figure 8.
+
+![Figure 8 — Stress heatmap: combined Gini × operating-cost grid (Phase 4.2 PART C, 36 cells)](artifacts/figures/fig8_stress_heatmap.png)
+
+The five cells with negative cut-off gap deserve a brief examination.
+In the four reject-most cells the profit-optimal `k*` is below 1%
+(near-rejection of the entire portfolio), while Youden's J approval
+rate stays around 80% because Youden has no view of profit and
+continues to base its threshold on TPR − FPR. The Youden cut-off in
+these cells therefore approves a large slice of the portfolio whose
+average expected profit is *negative* (after operating cost), so the
+profit *at* Youden's cut-off is heavily negative. The profit-optimal
+cut-off avoids most of those losses by approving very few accounts;
+the dollar profit at the profit-optimal cut-off is therefore close to
+zero (and positive), substantially better than the negative profit at
+Youden's cut-off, and the dollar uplift is positive even though the
+approval-rate direction is reversed.
+
+### Interpretation: refined thesis claim
+
+The 36-cell combined grid produces the chapter's refined thesis claim.
+A direction-anchored claim — *"profit cut-off is more permissive than
+Youden"* — is empirically true in 31 of 36 PART C cells but false in
+five. A dollar-anchored claim — *"profit cut-off strictly beats Youden
+in dollar terms"* — is empirically true in 36 of 36 PART C cells, in
+all 64 cells of the Phase 4.2 stress space, and across all 4,000
+bootstrap × anchor combinations of §4.4. The dollar-anchored claim is
+both more accurate and methodologically cleaner because it does not
+require a sub-clause to handle the five reject-most cells.
+
+> **Refined thesis claim (chapter conclusion):** *Within the tested
+> scenario space, profit-driven cut-offs strictly beat Youden's J in
+> dollar terms, regardless of whether the profit-optimal cut-off is
+> more or less permissive than Youden's in approval-rate terms. The
+> magnitude of the dollar advantage shrinks under adverse-stress
+> conditions but does not change sign across the 64-cell Phase 4.2
+> stress space and across the 4,000 OOT bootstrap × anchor combinations
+> evaluated.*
+
+This refined formulation is what enables the thesis's central
+contribution: the demonstration that profit-driven cut-off selection
+produces strictly higher dollar profit than discrimination-driven
+cut-off selection across a stress space that includes (i) a 576-cell
+economic stress grid (§4.3), (ii) a 16-cell PD-quality stress grid
+(§4.5), (iii) a 12-cell operating-cost stress grid (§4.6), and (iv)
+4,000 bootstrap × anchor combinations on the OOT population (§4.4).
+The boundary conditions are explicit: the bootstrap captures only
+sampling uncertainty within OOT, the stress space is locked, the PD
+calibration is mean-anchored to the calibration slice rather than to
+the eco-OOT subset, and the simulator itself is synthetic. Within
+those bounds, the evidence is consistent in direction (profit > Youden
+in dollar terms) and stable in magnitude (the dollar uplift varies
+from $0.46M at adverse stress to $30.75M at the optimistic base on
+the OOT economics population, with the per-anchor 95% CIs reported in
+Table 4.6).
+
+The chapter has therefore traced the thesis hypothesis from its PD
+modelling foundations (§4.1), through the base economic measurement
+that established the framework's saturated upper bound (§4.2), the
+576-cell economic stress grid that established its interior optima
+(§4.3), the bootstrap CIs that established its statistical robustness
+(§4.4), the PD-quality stress that established its widening value
+under signal degradation (§4.5), the operating-cost stress that
+established its self-falsifying capacity to prescribe rejection
+(§4.6), and finally the combined stress that produced the refined
+dollar-anchored claim. Chapter 5 (Discussion) examines what these
+findings imply for credit-risk practice and for the broader literature
+on profit-driven credit scoring; Chapter 6 (Limitations) records the
+boundary conditions explicitly and identifies future work directions.
