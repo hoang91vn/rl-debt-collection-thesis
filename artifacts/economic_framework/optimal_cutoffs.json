@@ -1,0 +1,162 @@
+{
+  "pd_lgb_platt__tiered": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.19155113956429146,
+    "max_total_profit": 352316108.8192604,
+    "youden_threshold_oot": 0.010567286079506546,
+    "youden_approve_pct": 79.41
+  },
+  "pd_lgb_platt__fixed_12": {
+    "k_star": 235815,
+    "approve_pct_star": 99.94,
+    "cutoff_pd_star": 0.16969276564940036,
+    "max_total_profit": 264327028.71504304,
+    "youden_threshold_oot": 0.010567286079506546,
+    "youden_approve_pct": 79.41
+  },
+  "pd_lgb_platt__fixed_18": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.19155113956429146,
+    "max_total_profit": 413089203.21017826,
+    "youden_threshold_oot": 0.010567286079506546,
+    "youden_approve_pct": 79.41
+  },
+  "pd_lgb_platt__fixed_24": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.19155113956429146,
+    "max_total_profit": 568258181.518335,
+    "youden_threshold_oot": 0.010567286079506546,
+    "youden_approve_pct": 79.41
+  },
+  "pd_lgb_platt__fixed_30": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.19155113956429146,
+    "max_total_profit": 729663771.8051647,
+    "youden_threshold_oot": 0.010567286079506546,
+    "youden_approve_pct": 79.41
+  },
+  "pd_lr_full_platt__tiered": {
+    "k_star": 235266,
+    "approve_pct_star": 99.7,
+    "cutoff_pd_star": 0.3752845075460098,
+    "max_total_profit": 426448815.86261606,
+    "youden_threshold_oot": 0.021299828373982938,
+    "youden_approve_pct": 76.72
+  },
+  "pd_lr_full_platt__fixed_12": {
+    "k_star": 231377,
+    "approve_pct_star": 98.05,
+    "cutoff_pd_star": 0.1697636141837743,
+    "max_total_profit": 248713476.73983806,
+    "youden_threshold_oot": 0.021299828373982938,
+    "youden_approve_pct": 76.72
+  },
+  "pd_lr_full_platt__fixed_18": {
+    "k_star": 233388,
+    "approve_pct_star": 98.91,
+    "cutoff_pd_star": 0.24428472876344598,
+    "max_total_profit": 394137148.3780402,
+    "youden_threshold_oot": 0.021299828373982938,
+    "youden_approve_pct": 76.72
+  },
+  "pd_lr_full_platt__fixed_24": {
+    "k_star": 234600,
+    "approve_pct_star": 99.42,
+    "cutoff_pd_star": 0.31259827769348636,
+    "max_total_profit": 546585109.0015366,
+    "youden_threshold_oot": 0.021299828373982938,
+    "youden_approve_pct": 76.72
+  },
+  "pd_lr_full_platt__fixed_30": {
+    "k_star": 235266,
+    "approve_pct_star": 99.7,
+    "cutoff_pd_star": 0.3752845075460098,
+    "max_total_profit": 705579304.5845077,
+    "youden_threshold_oot": 0.021299828373982938,
+    "youden_approve_pct": 76.72
+  },
+  "pd_lr_nof6e_platt__tiered": {
+    "k_star": 235201,
+    "approve_pct_star": 99.67,
+    "cutoff_pd_star": 0.3741524201685993,
+    "max_total_profit": 439161131.2779692,
+    "youden_threshold_oot": 0.02256366836906205,
+    "youden_approve_pct": 80.59
+  },
+  "pd_lr_nof6e_platt__fixed_12": {
+    "k_star": 232561,
+    "approve_pct_star": 98.56,
+    "cutoff_pd_star": 0.1696756152826861,
+    "max_total_profit": 248173751.38116935,
+    "youden_threshold_oot": 0.02256366836906205,
+    "youden_approve_pct": 80.59
+  },
+  "pd_lr_nof6e_platt__fixed_18": {
+    "k_star": 234046,
+    "approve_pct_star": 99.19,
+    "cutoff_pd_star": 0.24419937713953008,
+    "max_total_profit": 394052547.146195,
+    "youden_threshold_oot": 0.02256366836906205,
+    "youden_approve_pct": 80.59
+  },
+  "pd_lr_nof6e_platt__fixed_24": {
+    "k_star": 234718,
+    "approve_pct_star": 99.47,
+    "cutoff_pd_star": 0.31247320427936254,
+    "max_total_profit": 546668422.3913786,
+    "youden_threshold_oot": 0.02256366836906205,
+    "youden_approve_pct": 80.59
+  },
+  "pd_lr_nof6e_platt__fixed_30": {
+    "k_star": 235201,
+    "approve_pct_star": 99.67,
+    "cutoff_pd_star": 0.3741524201685993,
+    "max_total_profit": 705673471.1975578,
+    "youden_threshold_oot": 0.02256366836906205,
+    "youden_approve_pct": 80.59
+  },
+  "pd_sc_platt__tiered": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.21651563134741658,
+    "max_total_profit": 373380907.27179176,
+    "youden_threshold_oot": 0.01853800323326246,
+    "youden_approve_pct": 87.9
+  },
+  "pd_sc_platt__fixed_12": {
+    "k_star": 235729,
+    "approve_pct_star": 99.9,
+    "cutoff_pd_star": 0.1683963520488866,
+    "max_total_profit": 264821985.9150082,
+    "youden_threshold_oot": 0.01853800323326246,
+    "youden_approve_pct": 87.9
+  },
+  "pd_sc_platt__fixed_18": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.21651563134741658,
+    "max_total_profit": 413608899.8012524,
+    "youden_threshold_oot": 0.01853800323326246,
+    "youden_approve_pct": 87.9
+  },
+  "pd_sc_platt__fixed_24": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.21651563134741658,
+    "max_total_profit": 568828278.8638291,
+    "youden_threshold_oot": 0.01853800323326246,
+    "youden_approve_pct": 87.9
+  },
+  "pd_sc_platt__fixed_30": {
+    "k_star": 235968,
+    "approve_pct_star": 100.0,
+    "cutoff_pd_star": 0.21651563134741658,
+    "max_total_profit": 730286655.7233781,
+    "youden_threshold_oot": 0.01853800323326246,
+    "youden_approve_pct": 87.9
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "anchors": {
+    "optimistic_base": {
+      "pd_multiplier": 1.0,
+      "cost_of_funds_annual": 0.0,
+      "acquisition_cost": 0,
+      "lgd": 0.55,
+      "apr_strategy": "tiered_uncapped",
+      "op_cost_annual": 0.0
+    },
+    "realistic_central_boundary": {
+      "pd_multiplier": 2.0,
+      "cost_of_funds_annual": 0.03,
+      "acquisition_cost": 250,
+      "lgd": 0.65,
+      "apr_strategy": "tiered_cap_24",
+      "op_cost_annual": 0.0
+    },
+    "moderate_interior": {
+      "pd_multiplier": 3.0,
+      "cost_of_funds_annual": 0.03,
+      "acquisition_cost": 500,
+      "lgd": 0.65,
+      "apr_strategy": "flat_18",
+      "op_cost_annual": 0.0
+    },
+    "adverse_stress": {
+      "pd_multiplier": 5.0,
+      "cost_of_funds_annual": 0.06,
+      "acquisition_cost": 500,
+      "lgd": 0.85,
+      "apr_strategy": "flat_18",
+      "op_cost_annual": 0.0
+    }
+  },
+  "youden_thresholds": {
+    "optimistic_base": 0.010567286079506546,
+    "realistic_central_boundary": 0.02113457215901309,
+    "moderate_interior": 0.031701858238519634,
+    "adverse_stress": 0.05283643039753273
+  },
+  "special_probabilities": [
+    {
+      "anchor": "optimistic_base",
+      "P(k* >= 99% / approve_all)": 1.0,
+      "P(50% <= k* < 99% / interior)": 0.0,
+      "P(k* < 50% / reject_most)": 0.0,
+      "P(profit cutoff > Youden)": 1.0,
+      "P(profit uplift > 0)": 1.0
+    },
+    {
+      "anchor": "realistic_central_boundary",
+      "P(k* >= 99% / approve_all)": 1.0,
+      "P(50% <= k* < 99% / interior)": 0.0,
+      "P(k* < 50% / reject_most)": 0.0,
+      "P(profit cutoff > Youden)": 1.0,
+      "P(profit uplift > 0)": 1.0
+    },
+    {
+      "anchor": "moderate_interior",
+      "P(k* >= 99% / approve_all)": 0.0,
+      "P(50% <= k* < 99% / interior)": 1.0,
+      "P(k* < 50% / reject_most)": 0.0,
+      "P(profit cutoff > Youden)": 1.0,
+      "P(profit uplift > 0)": 1.0
+    },
+    {
+      "anchor": "adverse_stress",
+      "P(k* >= 99% / approve_all)": 0.0,
+      "P(50% <= k* < 99% / interior)": 1.0,
+      "P(k* < 50% / reject_most)": 0.0,
+      "P(profit cutoff > Youden)": 1.0,
+      "P(profit uplift > 0)": 1.0
+    }
+  ],
+  "n_bootstrap": 1000,
+  "stratification": "by tenor (24m / 36m)",
+  "primary_pd": "pd_lgb_platt",
+  "seed": 42
+}

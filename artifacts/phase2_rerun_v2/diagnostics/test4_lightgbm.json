@@ -1,0 +1,139 @@
+{
+  "n_features": 435,
+  "best_iter": 1,
+  "scale_pos_weight": 56.652622673434855,
+  "oot_metrics": {
+    "pd_lgb_raw": {
+      "auc": 0.8726226461231968,
+      "gini": 0.7452452922463937,
+      "ks": 0.5961145945513637,
+      "brier": 0.01098684374925198,
+      "ece": 0.0449169645836198,
+      "mean_pred": 0.053391365263229434,
+      "base_rate": 0.00847440067960964
+    },
+    "pd_lgb_platt": {
+      "auc": 0.8726226461231968,
+      "gini": 0.7452452922463937,
+      "ks": 0.5961145945513637,
+      "brier": 0.008100642270929654,
+      "ece": 0.0009502794149294821,
+      "mean_pred": 0.009382807921584014,
+      "base_rate": 0.00847440067960964
+    },
+    "pd_lgb_iso": {
+      "auc": 0.8704011801857654,
+      "gini": 0.7408023603715308,
+      "ks": 0.5961145945513637,
+      "brier": 0.008086989020317617,
+      "ece": 0.0008445137658395852,
+      "mean_pred": 0.009289619588562942,
+      "base_rate": 0.00847440067960964
+    }
+  },
+  "top20_features": [
+    {
+      "feature": "job_code_x_income",
+      "importance_split": 1,
+      "importance_gain": 750759.0
+    },
+    {
+      "feature": "age_x_n_children",
+      "importance_split": 5,
+      "importance_gain": 462439.830078125
+    },
+    {
+      "feature": "act_age",
+      "importance_split": 5,
+      "importance_gain": 340386.22021484375
+    },
+    {
+      "feature": "count_by_marital_status",
+      "importance_split": 2,
+      "importance_gain": 237152.1015625
+    },
+    {
+      "feature": "app_nom_gender",
+      "importance_split": 3,
+      "importance_gain": 160303.5
+    },
+    {
+      "feature": "mean_age_by_marital_status",
+      "importance_split": 2,
+      "importance_gain": 52034.400390625
+    },
+    {
+      "feature": "synth_self_reported_income",
+      "importance_split": 1,
+      "importance_gain": 27663.69921875
+    },
+    {
+      "feature": "synth_secured_limit",
+      "importance_split": 1,
+      "importance_gain": 19424.0
+    },
+    {
+      "feature": "synth_highest_limit",
+      "importance_split": 1,
+      "importance_gain": 14785.2001953125
+    },
+    {
+      "feature": "synth_int_balance_x_score",
+      "importance_split": 1,
+      "importance_gain": 8894.3203125
+    },
+    {
+      "feature": "synth_revolving_limit",
+      "importance_split": 1,
+      "importance_gain": 7941.419921875
+    },
+    {
+      "feature": "synth_int_inc_x_nchildren",
+      "importance_split": 1,
+      "importance_gain": 7693.02978515625
+    },
+    {
+      "feature": "synth_available_credit",
+      "importance_split": 1,
+      "importance_gain": 7621.35986328125
+    },
+    {
+      "feature": "synth_auto_loan_balance",
+      "importance_split": 1,
+      "importance_gain": 7273.1201171875
+    },
+    {
+      "feature": "synth_household_income_v1",
+      "importance_split": 1,
+      "importance_gain": 7242.16015625
+    },
+    {
+      "feature": "synth_noise_normal_2",
+      "importance_split": 1,
+      "importance_gain": 6638.3701171875
+    },
+    {
+      "feature": "random_normal_10",
+      "importance_split": 1,
+      "importance_gain": 6484.490234375
+    },
+    {
+      "feature": "synth_avg_account_age",
+      "importance_split": 1,
+      "importance_gain": 6304.06982421875
+    },
+    {
+      "feature": "synth_noise_normal_8",
+      "importance_split": 0,
+      "importance_gain": 0.0
+    },
+    {
+      "feature": "mean_income_by_gender",
+      "importance_split": 0,
+      "importance_gain": 0.0
+    }
+  ],
+  "f6d_in_top20": [
+    "random_normal_10"
+  ]
+}

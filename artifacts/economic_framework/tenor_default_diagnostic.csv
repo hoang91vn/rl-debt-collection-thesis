@@ -1,0 +1,4 @@
+n_installments,row_count,default_count,default_rate_pct,mean_pd_12m_calibrated,mean_loan_amount
+12,298346,0,0.0,0.009154,2980.78
+24,135115,3121,2.3099,0.009267,5946.51
+36,100853,4467,4.4292,0.009163,8944.29

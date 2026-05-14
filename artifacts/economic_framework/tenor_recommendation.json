@@ -1,0 +1,30 @@
+{
+  "by_tenor": [
+    {
+      "n_installments": 12,
+      "row_count": 298346,
+      "default_count": 0,
+      "default_rate_pct": 0.0,
+      "mean_pd_12m_calibrated": 0.009154,
+      "mean_loan_amount": 2980.78
+    },
+    {
+      "n_installments": 24,
+      "row_count": 135115,
+      "default_count": 3121,
+      "default_rate_pct": 2.3099,
+      "mean_pd_12m_calibrated": 0.009267,
+      "mean_loan_amount": 5946.51
+    },
+    {
+      "n_installments": 36,
+      "row_count": 100853,
+      "default_count": 4467,
+      "default_rate_pct": 4.4292,
+      "mean_pd_12m_calibrated": 0.009163,
+      "mean_loan_amount": 8944.29
+    }
+  ],
+  "recommendation": "STRUCTURAL ARTIFACT \u2014 12-month DR is near-zero. The simulator's writeoff mechanism requires 12 missed installments to trigger coll_status=8, so a 12-month loan can only become a writeoff AT or AFTER its terminal month \u2014 outside the offsets-12-23 default_flag_12m window. RECOMMENDATION: **B. EXCLUDE 12-month loans from the economics population**, with caveat that thesis limitations section should document this simulator artifact.",
+  "decision_letter": "B"
+}
