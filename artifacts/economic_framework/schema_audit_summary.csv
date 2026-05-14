@@ -1,0 +1,9 @@
+check,item,status,source_column,recommendation,notes
+1,loan_amount/EAD origination,present,loan_amount,use `loan_amount` as principal at origination,allowed_for_profit=True
+2,tenor/n_installments,present,n_installments,tenor varies (3 levels) — implement tenor-aware LT EL,"unique=3, 12_present=True"
+3,installment/zero-interest,present,installment,ZERO-INTEREST simulator confirmed; APR must be EXOGENOUS,"mean_ratio=1.000000, std=0.000000"
+4,APR/interest_rate,missing,,EXOGENOUS APR required,no explicit APR; ASB used 5/8/10/12/15% sensitivity
+5,EAD/outstanding balance,present,loan_amount + act_paid_installments_m*,EAD derivable from loan_amount + n_installments + act_paid_installments_m,derivation formula in report
+6,LGD/recovery,present,transactions.csv (derivable),DERIVABLE empirically; recommend exogenous LGD ≈ 0.65 as base + sensitivity 0.45/0.85,ABT has no LGD column; ASB enrichment adds it
+7,existing_economics_scaffold,present,scripts/enrich_thesis_abt.py,PARTIALLY REUSABLE; extend to tenor-aware LT EL + Lifetime Net Margin,ASB single-period; extend for tenor
+8,PD score availability,present,"5 sources; 2 pre-saved, 3 runtime",use LightGBM_tuned + Platt as primary; runtime-score; persist outputs in artifacts/economic_framework/pd_scores_for_economics.parquet,all align on aid

@@ -1,0 +1,34 @@
+{
+  "pd_lgb_platt": {
+    "mean_pd": 0.009486005638501386,
+    "mean_LT_EL": 62.952652608924204,
+    "mean_LT_margin": 1556.019970292922,
+    "mean_Expected_Profit": 1493.0673176839973,
+    "total_Expected_Profit": 352316108.8192575,
+    "share_profit_gt_0": 1.0
+  },
+  "pd_lr_full_platt": {
+    "mean_pd": 0.02084350865157738,
+    "mean_LT_EL": 134.5016367593862,
+    "mean_LT_margin": 1940.0881707870487,
+    "mean_Expected_Profit": 1805.5865340276628,
+    "total_Expected_Profit": 426060643.2614395,
+    "share_profit_gt_0": 0.9970250203417412
+  },
+  "pd_lr_nof6e_platt": {
+    "mean_pd": 0.02080621107762201,
+    "mean_LT_EL": 134.37629652595822,
+    "mean_LT_margin": 1993.4515436733013,
+    "mean_Expected_Profit": 1859.0752471473431,
+    "total_Expected_Profit": 438682267.91886425,
+    "share_profit_gt_0": 0.9967495592622728
+  },
+  "pd_sc_platt": {
+    "mean_pd": 0.009222189935014337,
+    "mean_LT_EL": 60.77586914246417,
+    "mean_LT_margin": 1643.1129117575122,
+    "mean_Expected_Profit": 1582.337042615048,
+    "total_Expected_Profit": 373380907.27178764,
+    "share_profit_gt_0": 1.0
+  }
+}
